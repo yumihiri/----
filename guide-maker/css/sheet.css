@@ -1,0 +1,358 @@
+/* ==========================================================================
+   sheet.css
+   ③エディタ画面：右側プレビュー（ブループリント風シート）
+   mihoyo公式UIを模倣せず、「ビルド仕様書」の技術図面をコンセプトにする
+   ========================================================================== */
+
+.sheet-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: #05080b;
+}
+
+.sheet-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  padding: 10px 20px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-panel);
+  flex: 0 0 auto;
+}
+
+.sheet-viewport {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 40px 24px;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+}
+
+/* ---- シート本体 ---- */
+
+.sheet {
+  width: 860px;
+  max-width: 100%;
+  flex: 0 0 auto;
+  background-color: var(--ink);
+  background-image:
+    linear-gradient(var(--grid) 1px, transparent 1px),
+    linear-gradient(90deg, var(--grid) 1px, transparent 1px);
+  background-size: 32px 32px;
+  background-position: -1px -1px;
+  color: var(--paper);
+  border: 1px solid var(--grid);
+  padding: 32px;
+  font-family: var(--font-sans);
+}
+
+/* ---- 表題欄（製図の隅の枠を模したタイトルブロック） ---- */
+
+.sheet-titleblock {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 20px;
+  padding-bottom: 16px;
+  margin-bottom: 24px;
+  border-bottom: 2px solid var(--cyan);
+}
+
+.sheet-titleblock__title {
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+.sheet-titleblock__subtitle {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.sheet-titleblock__meta {
+  flex: 0 0 auto;
+  text-align: right;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--muted);
+  line-height: 1.7;
+  border: 1px solid var(--grid);
+  padding: 6px 12px;
+  white-space: nowrap;
+}
+
+.sheet-titleblock__meta span {
+  color: var(--cyan);
+}
+
+/* ---- ブロック共通ラッパー ---- */
+
+.sheet-block {
+  position: relative;
+  margin-bottom: 22px;
+  border: 1px solid var(--grid);
+  padding: 18px 18px 20px;
+}
+
+.sheet-block:last-child {
+  margin-bottom: 0;
+}
+
+.sheet-block__index {
+  position: absolute;
+  top: -1px;
+  left: -1px;
+  min-width: 24px;
+  padding: 3px 7px;
+  background: var(--grid);
+  color: var(--paper);
+  font-family: var(--font-mono);
+  font-size: 10px;
+  font-weight: 700;
+  text-align: center;
+}
+
+.sheet-block__title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--cyan);
+  margin-bottom: 14px;
+  padding-left: 30px;
+}
+
+.sheet-empty {
+  padding: 80px 20px;
+  text-align: center;
+  color: var(--muted);
+  font-size: 13px;
+  border: 1px dashed var(--grid);
+}
+
+/* ---- 3-1. stat_table ---- */
+
+.stat-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.stat-table th,
+.stat-table td {
+  border: 1px solid var(--grid);
+  padding: 8px 10px;
+  text-align: left;
+}
+
+.stat-table th {
+  color: var(--cyan);
+  font-weight: 700;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  background: rgba(92, 200, 194, 0.06);
+}
+
+.stat-table td:first-child {
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+/* ---- 3-2. icon_grid ---- */
+
+.icon-grid__head {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  padding: 0 12px 6px;
+}
+
+.icon-grid__head-cell {
+  font-size: 10px;
+  color: var(--muted);
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+}
+
+.icon-grid__body {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.icon-grid__row {
+  display: grid;
+  grid-template-columns: 160px 1fr;
+  gap: 12px;
+  align-items: center;
+  border: 1px solid var(--grid);
+  padding: 10px 12px;
+}
+
+.icon-grid__char {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-weight: 700;
+  font-size: 12.5px;
+  min-width: 0;
+}
+
+.icon-grid__char-name {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.icon-grid__icon {
+  width: 30px;
+  height: 30px;
+  border-radius: 999px;
+  background: var(--grid);
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  color: var(--muted);
+  overflow: hidden;
+}
+
+.icon-grid__items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.icon-grid__item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px 4px 4px;
+  border: 1px solid var(--grid);
+  border-radius: 999px;
+  font-size: 11.5px;
+}
+
+.icon-grid__item-icon {
+  width: 20px;
+  height: 20px;
+  border-radius: 999px;
+  background: var(--grid);
+  flex: 0 0 auto;
+}
+
+/* ---- 3-3. priority_list ---- */
+
+.priority-list__title {
+  font-size: 12.5px;
+  font-weight: 700;
+  color: var(--paper);
+  margin-bottom: 10px;
+}
+
+.priority-list__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: stretch;
+  gap: 10px;
+}
+
+.priority-list__item {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 3px;
+  padding: 8px 14px;
+  border: 1px solid var(--grid);
+  min-width: 96px;
+}
+
+.priority-list__item.is-top {
+  border-color: var(--amber);
+}
+
+.priority-list__rank {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--cyan);
+  font-weight: 700;
+}
+
+.priority-list__item.is-top .priority-list__rank {
+  color: var(--amber);
+}
+
+.priority-list__label {
+  font-weight: 700;
+  font-size: 12.5px;
+}
+
+.priority-list__note {
+  font-size: 10.5px;
+  color: var(--muted);
+}
+
+.priority-list__arrow {
+  align-self: center;
+  color: var(--muted);
+  font-size: 14px;
+  font-weight: 700;
+}
+
+/* ---- 3-4. tiered_effect ---- */
+
+.tiered-effect {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 12.5px;
+}
+
+.tiered-effect th,
+.tiered-effect td {
+  border: 1px solid var(--grid);
+  padding: 8px 10px;
+  text-align: left;
+  vertical-align: top;
+}
+
+.tiered-effect th {
+  color: var(--cyan);
+  font-weight: 700;
+  font-size: 11px;
+  background: rgba(92, 200, 194, 0.06);
+}
+
+.tiered-effect td.is-level {
+  font-weight: 700;
+  white-space: nowrap;
+  width: 64px;
+}
+
+.tiered-effect td.is-value {
+  font-weight: 700;
+  white-space: nowrap;
+  color: var(--cyan);
+}
+
+.tiered-effect tr.is-highlight td {
+  background: rgba(242, 166, 90, 0.1);
+}
+
+.tiered-effect tr.is-highlight td.is-value {
+  color: var(--amber);
+}
+
+.tiered-star {
+  letter-spacing: 1px;
+  color: var(--amber);
+}
+
+.tiered-star__off {
+  color: var(--grid);
+}

@@ -1,0 +1,270 @@
+/* ==========================================================================
+   controls.css
+   ③エディタ画面：左側の操作パネル（ブロック追加・編集フォーム）
+   ========================================================================== */
+
+.editor-layout {
+  display: grid;
+  grid-template-columns: 360px 1fr;
+  height: calc(100vh - 53px);
+  min-height: 0;
+}
+
+.controls-panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border);
+  background: var(--bg-panel);
+  overflow-y: auto;
+}
+
+.controls-section {
+  padding: 16px;
+  border-bottom: 1px solid var(--border);
+}
+
+.controls-section--grow {
+  flex: 1;
+  min-height: 160px;
+}
+
+.controls-section__title {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: var(--text-dim);
+  text-transform: uppercase;
+  margin-bottom: 10px;
+}
+
+/* ---- ブロック追加メニュー ---- */
+
+.block-add-menu {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.block-add-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg-app);
+  text-align: left;
+  transition: border-color 0.15s, background 0.15s;
+}
+
+.block-add-btn:hover {
+  border-color: var(--cyan);
+  border-style: solid;
+  background: var(--bg-panel-raised);
+}
+
+.block-add-btn__label {
+  font-size: 12.5px;
+  font-weight: 700;
+}
+
+.block-add-btn__desc {
+  font-size: 10.5px;
+  color: var(--text-dim);
+  line-height: 1.4;
+}
+
+/* ---- 追加済みブロック一覧 ---- */
+
+.block-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.block-list__empty {
+  font-size: 12px;
+  color: var(--muted);
+  padding: 12px 4px;
+  text-align: center;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+
+.block-list-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--bg-app);
+}
+
+.block-list-item.is-active {
+  border-color: var(--cyan);
+  background: rgba(92, 200, 194, 0.08);
+}
+
+.block-list-item__type {
+  font-size: 9.5px;
+  font-weight: 700;
+  color: var(--cyan);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  flex: 0 0 auto;
+}
+
+.block-list-item__label {
+  flex: 1;
+  min-width: 0;
+  font-size: 12.5px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.block-list-item__actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+/* ---- 編集フォーム ---- */
+
+.block-edit-form {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.block-edit-form__empty {
+  font-size: 12px;
+  color: var(--muted);
+  text-align: center;
+  padding: 20px 4px;
+}
+
+.form-row {
+  display: flex;
+  align-items: flex-end;
+  gap: 6px;
+}
+
+.form-row > .field {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+
+.form-row .btn-icon {
+  flex: 0 0 auto;
+}
+
+.form-subhead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 4px;
+  margin-bottom: 2px;
+}
+
+.form-subhead__title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.form-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.form-list-item {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 10px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--bg-app);
+}
+
+.form-list-item__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+}
+
+.form-list-item__title {
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--text-dim);
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 6px;
+}
+
+.value-type-row {
+  display: flex;
+  gap: 6px;
+}
+
+.value-type-row .select {
+  flex: 0 0 auto;
+  width: auto;
+}
+
+.icon-key-input {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+}
+
+.field-checkbox {
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+}
+
+.field-checkbox .field__label {
+  margin: 0;
+}
+
+/* ---- フッター（保存状態・書き出し） ---- */
+
+.controls-footer {
+  margin-top: auto;
+  padding: 14px 16px;
+  border-top: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.save-status {
+  font-size: 11px;
+  color: var(--muted);
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.save-status__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: var(--cyan);
+}
+
+.save-status.is-saving .save-status__dot {
+  background: var(--amber);
+}
