@@ -10,23 +10,25 @@ export const DEFAULT_CONFIG = { title: "", items: [] };
 export function render(config) {
   const title = config?.title || "";
   const items = config?.items ?? [];
-  if (items.length === 0) {
+  if (!title && items.length === 0) {
     return `<p class="sheet-empty">項目を追加すると優先順位が表示されます</p>`;
   }
-  const itemsHtml = items
-    .map((it, index) => {
-      const noteHtml = it.note ? `<span class="priority-list__note">${escapeHtml(it.note)}</span>` : "";
-      const arrow = index < items.length - 1 ? `<span class="priority-list__arrow">→</span>` : "";
-      return `
-        <div class="priority-list__item ${index === 0 ? "is-top" : ""}">
-          <span class="priority-list__rank">${index + 1}位</span>
-          <span class="priority-list__label">${escapeHtml(it.label)}</span>
-          ${noteHtml}
-        </div>
-        ${arrow}
-      `;
-    })
-    .join("");
+  const itemsHtml = items.length
+    ? items
+        .map((it, index) => {
+          const noteHtml = it.note ? `<span class="priority-list__note">${escapeHtml(it.note)}</span>` : "";
+          const arrow = index < items.length - 1 ? `<span class="priority-list__arrow">→</span>` : "";
+          return `
+            <div class="priority-list__item ${index === 0 ? "is-top" : ""}">
+              <span class="priority-list__rank">${index + 1}位</span>
+              <span class="priority-list__label">${escapeHtml(it.label)}</span>
+              ${noteHtml}
+            </div>
+            ${arrow}
+          `;
+        })
+        .join("")
+    : `<p class="sheet-empty">項目を追加すると優先順位が表示されます</p>`;
   return `
     <div class="priority-list">
       ${title ? `<div class="priority-list__title">${escapeHtml(title)}</div>` : ""}

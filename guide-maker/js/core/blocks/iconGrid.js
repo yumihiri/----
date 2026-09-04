@@ -10,39 +10,38 @@ export const DEFAULT_CONFIG = { groupLabel: "キャラ", entries: [] };
 export function render(config) {
   const groupLabel = config?.groupLabel || "キャラ";
   const entries = config?.entries ?? [];
-  if (entries.length === 0) {
-    return `<p class="sheet-empty">キャラを追加すると組み合わせ表が表示されます</p>`;
-  }
-  const rows = entries
-    .map((entry) => {
-      const name = entry.character?.name ?? "";
-      const items = entry.items ?? [];
-      const itemsHtml = items.length
-        ? items
-            .map(
-              (item) =>
-                `<span class="icon-grid__item"><span class="icon-grid__item-icon"></span>${escapeHtml(item.label)}</span>`
-            )
-            .join("")
-        : "-";
-      return `
-        <div class="icon-grid__row">
-          <div class="icon-grid__char">
-            <span class="icon-grid__icon"></span>
-            <span class="icon-grid__char-name">${escapeHtml(name)}</span>
-          </div>
-          <div class="icon-grid__items">${itemsHtml}</div>
-        </div>
-      `;
-    })
-    .join("");
+  const bodyHtml = entries.length
+    ? entries
+        .map((entry) => {
+          const name = entry.character?.name ?? "";
+          const items = entry.items ?? [];
+          const itemsHtml = items.length
+            ? items
+                .map(
+                  (item) =>
+                    `<span class="icon-grid__item"><span class="icon-grid__item-icon"></span>${escapeHtml(item.label)}</span>`
+                )
+                .join("")
+            : "-";
+          return `
+            <div class="icon-grid__row">
+              <div class="icon-grid__char">
+                <span class="icon-grid__icon"></span>
+                <span class="icon-grid__char-name">${escapeHtml(name)}</span>
+              </div>
+              <div class="icon-grid__items">${itemsHtml}</div>
+            </div>
+          `;
+        })
+        .join("")
+    : `<p class="sheet-empty">キャラを追加すると組み合わせ表が表示されます</p>`;
   return `
     <div class="icon-grid">
       <div class="icon-grid__head">
         <div class="icon-grid__head-cell">${escapeHtml(groupLabel)}</div>
         <div class="icon-grid__head-cell">組み合わせ</div>
       </div>
-      <div class="icon-grid__body">${rows}</div>
+      <div class="icon-grid__body">${bodyHtml}</div>
     </div>
   `;
 }

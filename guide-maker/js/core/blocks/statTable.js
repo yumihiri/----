@@ -10,7 +10,7 @@ export const DEFAULT_CONFIG = { columns: [], rows: [] };
 export function render(config) {
   const columns = config?.columns ?? [];
   const rows = config?.rows ?? [];
-  if (columns.length === 0 || rows.length === 0) {
+  if (columns.length === 0 && rows.length === 0) {
     return `<p class="sheet-empty">「列」と「行」を追加すると表が表示されます</p>`;
   }
   const theadCells = columns.map((c) => `<th>${escapeHtml(c.label)}</th>`).join("");
@@ -45,43 +45,38 @@ export function renderEditForm(container, config, onChange, extra = {}) {
 
     const columnsWrap = container.querySelector('[data-role="columns"]');
     cfg.columns.forEach((col, colIndex) => {
-      const isCustom = !columnOptions.some((opt) => opt.key === col.key);
       const item = document.createElement("div");
       item.className = "form-list-item";
       item.innerHTML = `
         <div class="form-row">
           <label class="field">
-            <span class="field__label">項目</span>
-            <select class="select" data-field="key">
-              ${columnOptions
-                .map(
-                  (opt) =>
-                    `<option value="${escapeHtml(opt.key)}" ${opt.key === col.key ? "selected" : ""}>${escapeHtml(opt.label)}</option>`
-                )
-                .join("")}
-              <option value="__custom__" ${isCustom ? "selected" : ""}>自由入力…</option>
-            </select>
+            <span class="field__label">表示ラベル</span>
+            <input class="input" type="text" data-field="label" value="${escapeHtml(col.label)}" placeholder="例：会心率" />
           </label>
           <button type="button" class="btn btn-icon btn-danger" data-action="remove-column" title="この列を削除">✕</button>
         </div>
-        ${
-          isCustom
-            ? `<label class="field">
-                <span class="field__label">列名（自由入力）</span>
-                <input class="input" type="text" data-field="custom-label" value="${escapeHtml(col.label)}" placeholder="例：与ダメージ" />
-              </label>`
-            : ""
-        }
+        <label class="field">
+          <span class="field__label">候補から選ぶ（任意・自動入力）</span>
+          <select class="select" data-field="preset-key">
+            <option value="">-- 候補を選択 --</option>
+            ${columnOptions
+              .map(
+                (opt) =>
+                  `<option value="${escapeHtml(opt.key)}" ${opt.key === col.key ? "selected" : ""}>${escapeHtml(opt.label)}</option>`
+              )
+              .join("")}
+          </select>
+        </label>
       `;
 
-      item.querySelector('[data-field="key"]').addEventListener("change", (e) => {
-        const value = e.target.value;
-        if (value === "__custom__") {
-          cfg.columns[colIndex] = { key: `custom_${Date.now()}`, label: "" };
-        } else {
-          const opt = columnOptions.find((o) => o.key === value);
-          cfg.columns[colIndex] = { key: opt.key, label: opt.label };
-        }
+      item.querySelector('[data-field="label"]').addEventListener("input", (e) => {
+        cfg.columns[colIndex].label = e.target.value;
+        emit();
+      });
+      item.querySelector('[data-field="preset-key"]').addEventListener("change", (e) => {
+        const opt = columnOptions.find((o) => o.key === e.target.value);
+        if (!opt) return;
+        cfg.columns[colIndex] = { key: opt.key, label: opt.label };
         paint();
         emit();
       });
@@ -94,13 +89,6 @@ export function renderEditForm(container, config, onChange, extra = {}) {
         paint();
         emit();
       });
-      const customLabelInput = item.querySelector('[data-field="custom-label"]');
-      if (customLabelInput) {
-        customLabelInput.addEventListener("input", (e) => {
-          cfg.columns[colIndex].label = e.target.value;
-          emit();
-        });
-      }
 
       columnsWrap.appendChild(item);
     });
@@ -149,15 +137,18 @@ export function renderEditForm(container, config, onChange, extra = {}) {
     });
 
     container.querySelector('[data-action="add-column"]').addEventListener("click", () => {
-      const firstUnused = columnOptions.find((opt) => !cfg.columns.some((c) => c.key === opt.key));
-      cfg.columns.push(firstUnused ? { key: firstUnused.key, label: firstUnused.label } : { key: `custom_${Date.now()}`, label: "" });
+      cfg.columns.push({ key: `custom_${Date.now()}_${cfg.columns.length}`, label: "" });
       paint();
       emit();
+      const labelInputs = container.querySelectorAll('[data-role="columns"] [data-field="label"]');
+      labelInputs[labelInputs.length - 1]?.focus();
     });
     container.querySelector('[data-action="add-row"]').addEventListener("click", () => {
       cfg.rows.push({ name: "", values: {} });
       paint();
       emit();
+      const nameInputs = container.querySelectorAll('[data-role="rows"] [data-field="name"]');
+      nameInputs[nameInputs.length - 1]?.focus();
     });
   }
 
