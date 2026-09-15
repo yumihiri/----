@@ -74,25 +74,19 @@ export const PRESETS = [
   {
     id: "artifact_combo",
     label: "装備の組み合わせ例",
-    description: "キャラごとのおすすめ武器・聖遺物セットを一覧にしたサンプルです。内容を書き換えて使えます",
+    description: "パーティ4人分の聖遺物組み合わせパターンを一覧にしたサンプルです。内容を書き換えて使えます",
     blocks: [
       {
         type: "icon_grid",
         config: {
-          groupLabel: "キャラ",
-          entries: [
+          characters: [{ name: "フリーナ" }, { name: "ナヴィア" }, { name: "行秋" }, { name: "香菱" }],
+          rows: [
             {
-              character: { name: "フリーナ", iconKey: "" },
               items: [
-                { label: "海祇の御盾", iconKey: "" },
-                { label: "神里の剣", iconKey: "" },
-              ],
-            },
-            {
-              character: { name: "ナヴィア", iconKey: "" },
-              items: [
-                { label: "黄金の劇団", iconKey: "" },
-                { label: "西風の長槍", iconKey: "" },
+                { label: "海祇の御盾" },
+                { label: "黄金の劇団" },
+                { label: "追憶のしめ縄" },
+                { label: "翠緑の影" },
               ],
             },
           ],

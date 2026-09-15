@@ -38,10 +38,11 @@ export function getState() {
   return state;
 }
 
-export function initState({ gameId, title = "", subtitle = "", blocks = [], draftId } = {}) {
+export function initState({ gameId, title = "", subtitle = "", blocks = [], draftId, mode = "template" } = {}) {
   state = {
     gameId,
     draftId: draftId || uid("draft"),
+    mode, // "template"（4ブロックタイプを使う）| "freeform"（自由記述の枠のみ）
     title,
     subtitle,
     blocks: blocks.map((b, index) => ({

@@ -84,13 +84,20 @@ export function renderEditForm(container, config, onChange) {
     const wrap = container.querySelector('[data-role="items"]');
     cfg.items.forEach((it, index) => {
       const row = document.createElement("div");
-      row.className = "mini-panel__row";
+      row.className = "mini-panel__row-group";
       row.innerHTML = `
-        <span class="mini-panel__row-label">${escapeHtml(it.label || "(無題)")}</span>
-        <button type="button" class="btn btn-icon" data-action="move-up" title="上へ" ${index === 0 ? "disabled" : ""}>↑</button>
-        <button type="button" class="btn btn-icon" data-action="move-down" title="下へ" ${index === cfg.items.length - 1 ? "disabled" : ""}>↓</button>
-        <button type="button" class="btn btn-icon btn-danger" data-action="remove" title="削除">✕</button>
+        <div class="mini-panel__row">
+          <span class="mini-panel__row-label">${escapeHtml(it.label || "(無題)")}</span>
+          <button type="button" class="btn btn-icon" data-action="move-up" title="上へ" ${index === 0 ? "disabled" : ""}>↑</button>
+          <button type="button" class="btn btn-icon" data-action="move-down" title="下へ" ${index === cfg.items.length - 1 ? "disabled" : ""}>↓</button>
+          <button type="button" class="btn btn-icon btn-danger" data-action="remove" title="削除">✕</button>
+        </div>
+        <input class="input" data-field="note" placeholder="補足（凸・育成度など自由記述）" value="${escapeHtml(it.note ?? "")}" />
       `;
+      row.querySelector('[data-field="note"]').addEventListener("change", (e) => {
+        it.note = e.target.value;
+        emit();
+      });
       row.querySelector('[data-action="remove"]').addEventListener("click", () => {
         cfg.items.splice(index, 1);
         paint();

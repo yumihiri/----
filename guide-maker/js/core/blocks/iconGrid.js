@@ -1,55 +1,60 @@
 // core/blocks/iconGrid.js
-// 組み合わせ例ブロック（キャラ × 装備アイコンの一覧）。ゲーム固有の知識は持たない。
-// キャラ名・アイテム名・列見出しはプレビュー上の直接編集で書き換える。
-// renderEditForm はキャラ・アイテムの追加/削除だけを扱う。
+// 組み合わせ例ブロック。パーティ4人（列固定）× 組み合わせパターン（行、任意数）の表。
+// ゲーム固有の知識は持たない。キャラ名・アイテム名はプレビュー上の直接編集で書き換える。
+// 将来的にはアイコン画像をドラッグして配置する想定だが、現状はテキストのみ。
 import { escapeHtml, deepClone } from "../utils.js";
 
 export const TYPE = "icon_grid";
 export const LABEL = "組み合わせ例";
 export const DESCRIPTION = "キャラと何か（聖遺物セット等）を対応付けたい";
-export const DEFAULT_CONFIG = { groupLabel: "キャラ", entries: [] };
+const CHAR_COUNT = 4;
+
+function emptyCharacters() {
+  return Array.from({ length: CHAR_COUNT }, () => ({ name: "" }));
+}
+function emptyRow() {
+  return { items: Array.from({ length: CHAR_COUNT }, () => ({ label: "" })) };
+}
+
+export const DEFAULT_CONFIG = { characters: emptyCharacters(), rows: [] };
 
 export function render(config) {
-  const groupLabel = config?.groupLabel || "";
-  const entries = config?.entries ?? [];
-  const bodyHtml = entries.length
-    ? entries
-        .map((entry, ei) => {
-          const name = entry.character?.name ?? "";
-          const items = entry.items ?? [];
-          const itemsHtml = items.length
-            ? items
-                .map(
-                  (item, ii) =>
-                    `<span class="icon-grid__item"><span class="icon-grid__item-icon"></span><span contenteditable="true" data-edit="item-label" data-entry-index="${ei}" data-item-index="${ii}" data-placeholder="アイテム名">${escapeHtml(item.label)}</span></span>`
-                )
-                .join("")
-            : "-";
-          return `
-            <div class="icon-grid__row">
-              <div class="icon-grid__char">
-                <span class="icon-grid__icon"></span>
-                <span class="icon-grid__char-name" contenteditable="true" data-edit="char-name" data-entry-index="${ei}" data-placeholder="キャラ名">${escapeHtml(name)}</span>
-              </div>
-              <div class="icon-grid__items">${itemsHtml}</div>
-            </div>
-          `;
+  const characters = config?.characters?.length === CHAR_COUNT ? config.characters : emptyCharacters();
+  const rows = config?.rows ?? [];
+
+  const headCells = characters
+    .map(
+      (c, i) =>
+        `<th contenteditable="true" data-edit="char-name" data-char-index="${i}" data-placeholder="キャラ${i + 1}">${escapeHtml(c.name)}</th>`
+    )
+    .join("");
+
+  const bodyRows = rows.length
+    ? rows
+        .map((row, ri) => {
+          const cells = Array.from({ length: CHAR_COUNT })
+            .map((_, ci) => {
+              const label = row.items?.[ci]?.label ?? "";
+              return `<td contenteditable="true" data-edit="item-label" data-row-index="${ri}" data-item-index="${ci}" data-placeholder="組み合わせ">${escapeHtml(label)}</td>`;
+            })
+            .join("");
+          return `<tr>${cells}</tr>`;
         })
         .join("")
-    : `<p class="sheet-empty">キャラを追加すると組み合わせ表が表示されます</p>`;
+    : `<tr><td colspan="${CHAR_COUNT}" class="icon-grid__empty-row">ミニパネルの「組み合わせを追加」で行を増やせます</td></tr>`;
+
   return `
-    <div class="icon-grid">
-      <div class="icon-grid__head">
-        <div class="icon-grid__head-cell" contenteditable="true" data-edit="group-label" data-placeholder="列見出し">${escapeHtml(groupLabel)}</div>
-        <div class="icon-grid__head-cell">組み合わせ</div>
-      </div>
-      <div class="icon-grid__body">${bodyHtml}</div>
-    </div>
+    <table class="icon-grid-table">
+      <thead><tr>${headCells}</tr></thead>
+      <tbody>${bodyRows}</tbody>
+    </table>
   `;
 }
 
 export function bindInlineEdit(container, config, onChange) {
   const cfg = deepClone(config ?? DEFAULT_CONFIG);
+  cfg.characters = cfg.characters?.length === CHAR_COUNT ? cfg.characters : emptyCharacters();
+  cfg.rows = cfg.rows ?? [];
 
   function bind(selector, apply) {
     container.querySelectorAll(selector).forEach((el) => {
@@ -66,93 +71,59 @@ export function bindInlineEdit(container, config, onChange) {
     });
   }
 
-  const groupLabelEl = container.querySelector('[data-edit="group-label"]');
-  if (groupLabelEl) {
-    groupLabelEl.addEventListener("blur", () => {
-      cfg.groupLabel = groupLabelEl.textContent.trim();
-      onChange(deepClone(cfg));
-    });
-    groupLabelEl.addEventListener("keydown", (e) => {
-      if (e.key === "Enter") {
-        e.preventDefault();
-        groupLabelEl.blur();
-      }
-    });
-  }
-
   bind('[data-edit="char-name"]', (el) => {
-    const i = Number(el.dataset.entryIndex);
-    if (cfg.entries[i]) {
-      cfg.entries[i].character = cfg.entries[i].character ?? { name: "", iconKey: "" };
-      cfg.entries[i].character.name = el.textContent.trim();
-    }
+    const i = Number(el.dataset.charIndex);
+    if (cfg.characters[i]) cfg.characters[i].name = el.textContent.trim();
   });
   bind('[data-edit="item-label"]', (el) => {
-    const ei = Number(el.dataset.entryIndex);
-    const ii = Number(el.dataset.itemIndex);
-    if (cfg.entries[ei]?.items?.[ii]) {
-      cfg.entries[ei].items[ii].label = el.textContent.trim();
+    const ri = Number(el.dataset.rowIndex);
+    const ci = Number(el.dataset.itemIndex);
+    if (cfg.rows[ri]) {
+      cfg.rows[ri].items = cfg.rows[ri].items ?? [];
+      cfg.rows[ri].items[ci] = cfg.rows[ri].items[ci] ?? { label: "" };
+      cfg.rows[ri].items[ci].label = el.textContent.trim();
     }
   });
 }
 
 export function renderEditForm(container, config, onChange) {
   const cfg = deepClone(config ?? DEFAULT_CONFIG);
-  cfg.entries = cfg.entries ?? [];
+  cfg.characters = cfg.characters?.length === CHAR_COUNT ? cfg.characters : emptyCharacters();
+  cfg.rows = cfg.rows ?? [];
 
   const emit = () => onChange(deepClone(cfg));
 
   function paint() {
     container.innerHTML = `
       <div class="mini-panel__section">
-        <div class="mini-panel__label">キャラ（クリックで名前を編集できます）</div>
-        <div class="mini-panel__list" data-role="entries"></div>
-        <button type="button" class="btn btn-ghost btn-sm" data-action="add-entry">+ キャラを追加</button>
+        <div class="mini-panel__label">キャラ4人はプレビュー上で直接編集できます</div>
+      </div>
+      <div class="mini-panel__section">
+        <div class="mini-panel__label">組み合わせ（行）</div>
+        <div class="mini-panel__list" data-role="rows"></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-action="add-row">+ 組み合わせを追加</button>
       </div>
     `;
 
-    const wrap = container.querySelector('[data-role="entries"]');
-    cfg.entries.forEach((entry, ei) => {
-      entry.items = entry.items ?? [];
-      const row = document.createElement("div");
-      row.className = "mini-panel__row-group";
-      row.innerHTML = `
-        <div class="mini-panel__row">
-          <span class="mini-panel__row-label">${escapeHtml(entry.character?.name || "(無題のキャラ)")}</span>
-          <button type="button" class="btn btn-icon" data-action="add-item" title="アイテムを追加">+</button>
-          <button type="button" class="btn btn-icon btn-danger" data-action="remove-entry" title="削除">✕</button>
-        </div>
-        <div class="mini-panel__chips" data-role="items"></div>
+    const wrap = container.querySelector('[data-role="rows"]');
+    cfg.rows.forEach((row, ri) => {
+      const label = (row.items ?? []).map((it) => it.label).filter(Boolean).join(" / ") || "(無題)";
+      const item = document.createElement("div");
+      item.className = "mini-panel__row";
+      item.innerHTML = `
+        <span class="mini-panel__row-label">${escapeHtml(label)}</span>
+        <button type="button" class="btn btn-icon btn-danger" data-action="remove" title="この組み合わせを削除">✕</button>
       `;
-      row.querySelector('[data-action="remove-entry"]').addEventListener("click", () => {
-        cfg.entries.splice(ei, 1);
+      item.querySelector('[data-action="remove"]').addEventListener("click", () => {
+        cfg.rows.splice(ri, 1);
         paint();
         emit();
       });
-      row.querySelector('[data-action="add-item"]').addEventListener("click", () => {
-        entry.items.push({ label: "", iconKey: "" });
-        paint();
-        emit();
-      });
-
-      const itemsWrap = row.querySelector('[data-role="items"]');
-      entry.items.forEach((it, ii) => {
-        const chip = document.createElement("span");
-        chip.className = "mini-chip";
-        chip.innerHTML = `<span>${escapeHtml(it.label || "(無題)")}</span><button type="button" data-action="remove-item" title="削除">✕</button>`;
-        chip.querySelector('[data-action="remove-item"]').addEventListener("click", () => {
-          entry.items.splice(ii, 1);
-          paint();
-          emit();
-        });
-        itemsWrap.appendChild(chip);
-      });
-
-      wrap.appendChild(row);
+      wrap.appendChild(item);
     });
 
-    container.querySelector('[data-action="add-entry"]').addEventListener("click", () => {
-      cfg.entries.push({ character: { name: "", iconKey: "" }, items: [] });
+    container.querySelector('[data-action="add-row"]').addEventListener("click", () => {
+      cfg.rows.push(emptyRow());
       paint();
       emit();
     });

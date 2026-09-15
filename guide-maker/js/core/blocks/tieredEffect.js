@@ -107,7 +107,7 @@ function renderValueFieldsHtml(value) {
       </div>
     `;
   }
-  return `<p class="field__hint">数値・テキストはプレビュー上で直接編集できます</p>`;
+  return `<textarea class="textarea" data-field="text" placeholder="数値・テキスト" rows="2">${escapeHtml(value.text ?? "")}</textarea>`;
 }
 
 export function renderEditForm(container, config, onChange) {
@@ -173,6 +173,8 @@ export function renderEditForm(container, config, onChange) {
       if (maxInput) maxInput.addEventListener("change", (e) => { row.value.max = Number(e.target.value); emit(); });
       const ratingInput = valueFieldsEl.querySelector('[data-field="rating"]');
       if (ratingInput) ratingInput.addEventListener("change", (e) => { row.value.rating = Number(e.target.value); emit(); });
+      const textInput = valueFieldsEl.querySelector('[data-field="text"]');
+      if (textInput) textInput.addEventListener("change", (e) => { row.value.text = e.target.value; emit(); });
 
       wrap.appendChild(item);
     });

@@ -216,88 +216,35 @@
   white-space: nowrap;
 }
 
-/* ---- 3-2. icon_grid ---- */
+/* ---- 3-2. icon_grid（キャラ4人固定×組み合わせパターンのマトリクス表） ---- */
 
-.icon-grid__head {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 12px;
-  padding: 0 12px 6px;
-}
-
-.icon-grid__head-cell {
-  font-size: 10px;
-  color: var(--muted);
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-.icon-grid__body {
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.icon-grid__row {
-  display: grid;
-  grid-template-columns: 160px 1fr;
-  gap: 12px;
-  align-items: center;
-  border: 1px solid var(--grid);
-  padding: 10px 12px;
-}
-
-.icon-grid__char {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-weight: 700;
+.icon-grid-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: fixed;
   font-size: 12.5px;
-  min-width: 0;
 }
 
-.icon-grid__char-name {
+.icon-grid-table th,
+.icon-grid-table td {
+  border: 1px solid var(--grid);
+  padding: 10px;
+  text-align: center;
+  vertical-align: middle;
   overflow: hidden;
   text-overflow: ellipsis;
-  white-space: nowrap;
 }
 
-.icon-grid__icon {
-  width: 30px;
-  height: 30px;
-  border-radius: 999px;
-  background: var(--grid);
-  flex: 0 0 auto;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 9px;
+.icon-grid-table th {
+  color: var(--cyan);
+  font-weight: 700;
+  font-size: 12px;
+  background: rgba(92, 200, 194, 0.06);
+}
+
+.icon-grid__empty-row {
   color: var(--muted);
-  overflow: hidden;
-}
-
-.icon-grid__items {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-.icon-grid__item {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  padding: 4px 10px 4px 4px;
-  border: 1px solid var(--grid);
-  border-radius: 999px;
-  font-size: 11.5px;
-}
-
-.icon-grid__item-icon {
-  width: 20px;
-  height: 20px;
-  border-radius: 999px;
-  background: var(--grid);
-  flex: 0 0 auto;
+  font-style: italic;
 }
 
 /* ---- 3-3. priority_list ---- */
@@ -408,6 +355,18 @@
 
 .tiered-star__off {
   color: var(--grid);
+}
+
+/* ---- free_text（自由型キャンバス専用の自由記述ボックス） ---- */
+
+.free-text {
+  min-height: 60px;
+  height: 100%;
+  padding: 4px;
+  white-space: pre-wrap;
+  word-break: break-word;
+  font-size: 13px;
+  line-height: 1.6;
 }
 
 /* ---- プレビュー上の直接編集（インライン編集） ---- */

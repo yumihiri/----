@@ -4,7 +4,7 @@
 // 「ラベルや値のテキスト」はプレビュー上で直接編集し、「列/行の追加削除」のような
 // 構造操作だけは選択中のブロックのそばに浮かぶ小さいパネル（mini-panel）で行う。
 import { getGame } from "../games/registry.js";
-import { getBlockModule, BLOCK_TYPES } from "../core/blocks/index.js";
+import { getBlockModule, BLOCK_TYPES, FREEFORM_BLOCK_TYPES } from "../core/blocks/index.js";
 import { COLUMN_OPTIONS } from "../games/genshin/columnOptions.js";
 import { exportSheetAsImage } from "../core/export/toImage.js";
 import { listDrafts, loadDraft } from "../core/storage/autosave.js";
@@ -29,10 +29,16 @@ function blockPreviewLabel(block, mod) {
     }
     case "priority_list":
       return block.config?.title || "優先順位（未入力）";
-    case "icon_grid":
-      return block.config?.groupLabel || "組み合わせ";
+    case "icon_grid": {
+      const names = (block.config?.characters ?? []).map((c) => c.name).filter(Boolean);
+      return names.length ? names.join("・") : "組み合わせ（未入力）";
+    }
     case "tiered_effect":
       return `凸効果（${block.config?.rows?.length ?? 0}件）`;
+    case "free_text": {
+      const text = (block.config?.text ?? "").trim();
+      return text ? text.slice(0, 20) : "自由記述（未入力）";
+    }
     default:
       return mod.LABEL;
   }
@@ -54,13 +60,13 @@ export function mount({ params }) {
 
   restoreOrInitState(gameId);
 
-  // テンプレ型（blocksが埋まった状態）で開いた場合は最初のブロックを自動選択し、
+  // blocksが埋まった状態（テンプレ選択直後）で開いた場合は最初のブロックを自動選択し、
   // 「これを自分の内容に書き換えればいい」と一目で分かる修正体験にする。
-  // 自由型（blocks:[]）で開いた場合は何も選択せず、ブロック追加メニューが主役になる。
+  // 空のblocksで開いた場合は何も選択せず、ブロック追加メニューが主役になる。
   selectedBlockId = state.getState()?.blocks[0]?.id ?? null;
   lastRenderedPanelBlockId = undefined;
 
-  root.innerHTML = buildShell(game);
+  root.innerHTML = buildShell(game, state.getState());
   wireStaticHandlers(root, game);
 
   if (unsubscribe) unsubscribe();
@@ -75,17 +81,25 @@ function restoreOrInitState(gameId) {
     // モード選択画面から遷移した直後は、既にStateが初期化済みなのでそれを使う。
     return;
   }
-  // リロード等でStateが失われた場合は、同じゲームの最新の下書きを自動復元する。
+  // リロード等でStateが失われた場合は、同じゲームの最新の下書きを自動復元する
+  // （mode含め、draftに保存されている状態がそのまま復元される）。
   const drafts = listDrafts(gameId);
   const draft = drafts.length > 0 ? loadDraft(gameId, drafts[0].id) : null;
   if (draft) {
     state.loadStateFromDraft(draft);
   } else {
-    state.initState({ gameId, title: "", blocks: [] });
+    state.initState({ gameId, title: "", blocks: [], mode: "template" });
   }
 }
 
-function buildShell(game) {
+function buildShell(game, s) {
+  const isFreeform = s?.mode === "freeform";
+  const blockTypes = isFreeform ? FREEFORM_BLOCK_TYPES : BLOCK_TYPES;
+  const addTitle = isFreeform ? "自由記述を追加" : "ブロックを追加";
+  const addHint = isFreeform
+    ? "クリック、またはドラッグしてキャンバスに配置できます"
+    : "クリック、またはドラッグしてプレビューに配置できます";
+
   return `
     <div class="app">
       <header class="topbar">
@@ -108,17 +122,19 @@ function buildShell(game) {
           </div>
 
           <div class="controls-section controls-section--grow">
-            <div class="controls-section__title">ブロックを追加</div>
-            <p class="field__hint">クリック、またはドラッグしてプレビューに配置できます</p>
+            <div class="controls-section__title">${addTitle}</div>
+            <p class="field__hint">${addHint}</p>
             <div class="block-add-menu">
-              ${BLOCK_TYPES.map(
-                (t) => `
+              ${blockTypes
+                .map(
+                  (t) => `
                 <button type="button" class="block-add-btn" draggable="true" data-add-type="${t.type}">
                   <span class="block-add-btn__label">${escapeHtml(t.label)}</span>
                   <span class="block-add-btn__desc">${escapeHtml(t.description)}</span>
                 </button>
               `
-              ).join("")}
+                )
+                .join("")}
             </div>
           </div>
 
@@ -491,16 +507,31 @@ function renderMiniPanel(root, canvasEl, blockEl, block, s, mod) {
     canvasEl.appendChild(panel);
   }
 
+  // 右→左→下の順で置き場所を探す。左に十分な余白が無いのに機械的に
+  // 「ブロックの左」へ寄せると、パネルがブロック本体と重なって隠れてしまうため。
+  const PANEL_WIDTH = 240;
+  const GAP = 10;
   const left = parseFloat(blockEl.style.left) || 0;
   const top = parseFloat(blockEl.style.top) || 0;
   const blockWidth = parseFloat(blockEl.style.width) || blockEl.offsetWidth || DEFAULT_BLOCK_WIDTH;
+  const blockHeight = blockEl.offsetHeight || parseFloat(blockEl.style.height) || 0;
   const viewport = root.querySelector(".sheet-viewport");
   const viewportRect = viewport.getBoundingClientRect();
   const canvasRect = canvasEl.getBoundingClientRect();
-  const wouldOverflowRight = canvasRect.left + left + blockWidth + 250 > viewportRect.right;
 
-  panel.style.left = wouldOverflowRight ? `${Math.max(0, left - 250)}px` : `${left + blockWidth + 10}px`;
-  panel.style.top = `${top}px`;
+  const spaceRight = viewportRect.right - (canvasRect.left + left + blockWidth);
+  const spaceLeft = canvasRect.left + left - viewportRect.left;
+
+  if (spaceRight >= PANEL_WIDTH + GAP) {
+    panel.style.left = `${left + blockWidth + GAP}px`;
+    panel.style.top = `${top}px`;
+  } else if (spaceLeft >= PANEL_WIDTH + GAP) {
+    panel.style.left = `${left - PANEL_WIDTH - GAP}px`;
+    panel.style.top = `${top}px`;
+  } else {
+    panel.style.left = `${Math.max(0, left)}px`;
+    panel.style.top = `${top + blockHeight + GAP}px`;
+  }
 
   // 直接編集で列名などを変えた後もチップ表示を最新化したいので、パネル内に
   // フォーカスが無い限りは（ブロックが同じでも）毎回中身を作り直す。

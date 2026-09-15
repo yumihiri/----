@@ -52,7 +52,7 @@ function renderChoice(root, game) {
     `
     <div class="screen-heading">
       <h1 class="screen-heading__title">${escapeHtml(game.label)} のガイドを作成</h1>
-      <p class="screen-heading__desc">テンプレを使うか、白紙から自由に組み立てるかを選べます</p>
+      <p class="screen-heading__desc">テンプレを使うか、白紙から組み立てるか、自由なキャンバスに書くかを選べます</p>
     </div>
     <div class="mode-grid">
       <button type="button" class="mode-card" data-action="template">
@@ -63,7 +63,12 @@ function renderChoice(root, game) {
       <button type="button" class="mode-card" data-action="blank">
         <span class="mode-card__icon">＋</span>
         <span class="mode-card__title">白紙から作る</span>
-        <span class="mode-card__desc">ブロックを1つずつ追加して、自由にガイドを組み立てます</span>
+        <span class="mode-card__desc">目標ステータス表・優先順位リストなどのブロックを選んで、自由にガイドを組み立てます</span>
+      </button>
+      <button type="button" class="mode-card" data-action="freeform">
+        <span class="mode-card__icon">✎</span>
+        <span class="mode-card__title">自由に作る</span>
+        <span class="mode-card__desc">決まった型を使わず、何もないキャンバスに自由な文章の枠を配置して作ります</span>
       </button>
     </div>
   `
@@ -73,7 +78,10 @@ function renderChoice(root, game) {
     renderTemplateList(root, game);
   });
   root.querySelector('[data-action="blank"]').addEventListener("click", () => {
-    startEditor(game.id, { title: "", blocks: [] });
+    startEditor(game.id, { title: "", blocks: [], mode: "template" });
+  });
+  root.querySelector('[data-action="freeform"]').addEventListener("click", () => {
+    startEditor(game.id, { title: "", blocks: [], mode: "freeform" });
   });
 }
 
@@ -145,11 +153,11 @@ function renderConfirm(root, game, presetId) {
   );
 
   root.querySelector('[data-action="use"]').addEventListener("click", () => {
-    startEditor(game.id, { title: preset.label, blocks: preset.blocks });
+    startEditor(game.id, { title: preset.label, blocks: preset.blocks, mode: "template" });
   });
 }
 
-function startEditor(gameId, { title, blocks }) {
-  state.initState({ gameId, title, blocks });
+function startEditor(gameId, { title, blocks, mode }) {
+  state.initState({ gameId, title, blocks, mode });
   navigate(`/${gameId}/edit`);
 }
