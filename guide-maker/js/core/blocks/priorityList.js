@@ -4,7 +4,7 @@ import { escapeHtml, deepClone } from "../utils.js";
 
 export const TYPE = "priority_list";
 export const LABEL = "優先順位リスト";
-export const DESCRIPTION = "武器・聖遺物・天賦などの優先順位を並べる";
+export const DESCRIPTION = "優先順位・順番を示したい（武器の優先度など）";
 export const DEFAULT_CONFIG = { title: "", items: [] };
 
 export function render(config) {

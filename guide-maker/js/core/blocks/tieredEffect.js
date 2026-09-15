@@ -4,7 +4,7 @@ import { escapeHtml, deepClone } from "../utils.js";
 
 export const TYPE = "tiered_effect";
 export const LABEL = "凸効果表";
-export const DESCRIPTION = "1凸〜6凸などの段階別効果を表で整理する";
+export const DESCRIPTION = "段階ごとに変わる効果を示したい（凸効果・レベル別ボーナスなど）";
 export const DEFAULT_CONFIG = { rows: [] };
 
 function defaultValueForType(type) {

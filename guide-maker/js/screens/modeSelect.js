@@ -58,7 +58,7 @@ function renderChoice(root, game) {
       <button type="button" class="mode-card" data-action="template">
         <span class="mode-card__icon">▦</span>
         <span class="mode-card__title">テンプレから作る</span>
-        <span class="mode-card__desc">目標ステータス表や優先度リストなど、よく使う構成（枠組み）から始められます。数値やキャラ名は空欄なので、ご自身で入力します</span>
+        <span class="mode-card__desc">目標ステータス表や優先度リストなど、よく使う構成がサンプル入りで用意されています。内容を書き換えて使えます</span>
       </button>
       <button type="button" class="mode-card" data-action="blank">
         <span class="mode-card__icon">＋</span>
@@ -84,7 +84,7 @@ function renderTemplateList(root, game) {
     `
     <div class="screen-heading">
       <h1 class="screen-heading__title">テンプレを選択</h1>
-      <p class="screen-heading__desc">列やタイトルなどの枠組みだけが入った状態から始まります。数値・キャラ名などのデータは含まれません</p>
+      <p class="screen-heading__desc">サンプルの内容が入った状態から始まります。ご自身の内容に書き換えて使えます</p>
     </div>
     <div class="template-panel">
       <div class="template-list">
@@ -133,7 +133,7 @@ function renderConfirm(root, game, presetId) {
       <p class="screen-heading__desc">${escapeHtml(preset.description)}</p>
     </div>
     <div class="template-panel">
-      <p class="template-panel__hint">含まれるブロック：${escapeHtml(blockLabels)}（列見出しやタイトルなどの枠組みのみで、数値やキャラ名は空欄です。作成後にご自身で入力してください）</p>
+      <p class="template-panel__hint">含まれるブロック：${escapeHtml(blockLabels)}（サンプルの内容が入っています。作成後にご自身の内容へ書き換えてください）</p>
       <div class="mode-grid">
         <button type="button" class="btn btn-primary btn-block" data-action="use">このテンプレで作成する</button>
       </div>

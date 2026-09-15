@@ -50,7 +50,10 @@ export function mount({ params }) {
 
   restoreOrInitState(gameId);
 
-  selectedBlockId = null;
+  // テンプレ型（blocksが埋まった状態）で開いた場合は最初のブロックを自動選択し、
+  // 「これを自分の内容に書き換えればいい」と一目で分かる修正体験にする。
+  // 自由型（blocks:[]）で開いた場合は何も選択せず、ブロック追加メニューが主役になる。
+  selectedBlockId = state.getState()?.blocks[0]?.id ?? null;
   lastRenderedFormBlockId = undefined;
 
   root.innerHTML = buildShell(game);

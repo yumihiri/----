@@ -4,7 +4,7 @@ import { escapeHtml, deepClone } from "../utils.js";
 
 export const TYPE = "icon_grid";
 export const LABEL = "組み合わせ例";
-export const DESCRIPTION = "キャラごとのおすすめ装備・武器の組み合わせを並べる";
+export const DESCRIPTION = "キャラと何か（聖遺物セット等）を対応付けたい";
 export const DEFAULT_CONFIG = { groupLabel: "キャラ", entries: [] };
 
 export function render(config) {

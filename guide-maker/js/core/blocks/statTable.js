@@ -4,7 +4,7 @@ import { escapeHtml, deepClone } from "../utils.js";
 
 export const TYPE = "stat_table";
 export const LABEL = "目標ステータス表";
-export const DESCRIPTION = "凸・条件ごとの目標ステータスを表で整理する";
+export const DESCRIPTION = "数値を比較したい（会心率・ダメージ%など、複数対象の横並び比較）";
 export const DEFAULT_CONFIG = { columns: [], rows: [] };
 
 export function render(config) {
