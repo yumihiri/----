@@ -1,6 +1,8 @@
 // screens/editor.js
-// ③エディタ画面。ブロック追加・編集フォーム・プレビュー・ドラッグ配置・削除・
+// ③エディタ画面。ブロック追加・プレビュー上の直接編集・ドラッグ配置・リサイズ・削除・
 // 自動保存・PNG書き出しを統合するメイン画面。
+// 「ラベルや値のテキスト」はプレビュー上で直接編集し、「列/行の追加削除」のような
+// 構造操作だけは選択中のブロックのそばに浮かぶ小さいパネル（mini-panel）で行う。
 import { getGame } from "../games/registry.js";
 import { getBlockModule, BLOCK_TYPES } from "../core/blocks/index.js";
 import { COLUMN_OPTIONS } from "../games/genshin/columnOptions.js";
@@ -9,6 +11,8 @@ import { listDrafts, loadDraft } from "../core/storage/autosave.js";
 import { escapeHtml, deepClone } from "../core/utils.js";
 import { navigate } from "../router.js";
 import * as state from "../state.js";
+
+const DEFAULT_BLOCK_WIDTH = 420;
 
 // v1ではstat_tableの列候補のみゲーム固有データが必要。他ブロックはextra不要。
 function extraForBlockType(gameId, type) {
@@ -35,7 +39,7 @@ function blockPreviewLabel(block, mod) {
 }
 
 let selectedBlockId = null;
-let lastRenderedFormBlockId;
+let lastRenderedPanelBlockId;
 let unsubscribe = null;
 
 export function mount({ params }) {
@@ -54,7 +58,7 @@ export function mount({ params }) {
   // 「これを自分の内容に書き換えればいい」と一目で分かる修正体験にする。
   // 自由型（blocks:[]）で開いた場合は何も選択せず、ブロック追加メニューが主役になる。
   selectedBlockId = state.getState()?.blocks[0]?.id ?? null;
-  lastRenderedFormBlockId = undefined;
+  lastRenderedPanelBlockId = undefined;
 
   root.innerHTML = buildShell(game);
   wireStaticHandlers(root, game);
@@ -103,12 +107,13 @@ function buildShell(game) {
             </label>
           </div>
 
-          <div class="controls-section">
+          <div class="controls-section controls-section--grow">
             <div class="controls-section__title">ブロックを追加</div>
+            <p class="field__hint">クリック、またはドラッグしてプレビューに配置できます</p>
             <div class="block-add-menu">
               ${BLOCK_TYPES.map(
                 (t) => `
-                <button type="button" class="block-add-btn" data-add-type="${t.type}">
+                <button type="button" class="block-add-btn" draggable="true" data-add-type="${t.type}">
                   <span class="block-add-btn__label">${escapeHtml(t.label)}</span>
                   <span class="block-add-btn__desc">${escapeHtml(t.description)}</span>
                 </button>
@@ -120,11 +125,7 @@ function buildShell(game) {
           <div class="controls-section">
             <div class="controls-section__title">ブロック一覧</div>
             <div class="block-list" id="blockList"></div>
-          </div>
-
-          <div class="controls-section controls-section--grow">
-            <div class="controls-section__title">選択中のブロックを編集</div>
-            <div class="block-edit-form" id="blockEditForm"></div>
+            <p class="field__hint">プレビュー上の文字はクリックすると直接編集できます</p>
           </div>
 
           <div class="controls-footer">
@@ -161,7 +162,11 @@ function wireStaticHandlers(root, game) {
       const mod = getBlockModule(btn.dataset.addType);
       if (!mod) return;
       const block = state.addBlock(mod.TYPE, deepClone(mod.DEFAULT_CONFIG));
-      selectedBlockId = block.id;
+      selectBlock(block.id);
+    });
+    btn.addEventListener("dragstart", (e) => {
+      e.dataTransfer.setData("text/plain", btn.dataset.addType);
+      e.dataTransfer.effectAllowed = "copy";
     });
   });
 
@@ -190,7 +195,6 @@ function renderAll(root, s, meta) {
 
   renderBlockList(root, s);
   renderPreview(root, s);
-  renderEditFormPanel(root, s);
   renderSaveStatus(root, meta);
 }
 
@@ -223,27 +227,26 @@ function renderBlockList(root, s) {
 
   listEl.querySelectorAll(".block-list-item").forEach((row) => {
     const blockId = row.dataset.blockId;
-    row.querySelector('[data-action="select"]').addEventListener("click", () => selectBlock(root, blockId));
-    row.querySelector('[data-action="delete"]').addEventListener("click", () => deleteBlock(root, blockId));
+    row.querySelector('[data-action="select"]').addEventListener("click", () => selectBlock(blockId));
+    row.querySelector('[data-action="delete"]').addEventListener("click", () => deleteBlock(blockId));
   });
 }
 
-function selectBlock(root, blockId) {
+function selectBlock(blockId) {
   selectedBlockId = blockId;
-  renderBlockList(root, state.getState());
-  renderEditFormPanel(root, state.getState());
-  renderPreview(root, state.getState());
+  renderAll(document.getElementById("app"), state.getState(), {});
 }
 
-function deleteBlock(root, blockId) {
+function deleteBlock(blockId) {
   if (selectedBlockId === blockId) selectedBlockId = null;
   state.removeBlock(blockId);
 }
 
 // ブロックのドラッグ移動。移動量が小さい（クリック相当）場合は選択として扱う。
+// contenteditable要素やリサイズハンドルの上ではドラッグを開始しない。
 // ドラッグ中はstateを更新せずスタイルを直接操作し、pointerup時にのみ位置を確定させる
 // （毎フレームstate経由で再描画するとDOMが作り直されドラッグが破綻するため）。
-function attachDrag(blockEl, root, blockId) {
+function attachDrag(blockEl, blockId) {
   const DRAG_THRESHOLD = 4;
   let dragging = false;
   let moved = false;
@@ -254,6 +257,8 @@ function attachDrag(blockEl, root, blockId) {
 
   blockEl.addEventListener("pointerdown", (e) => {
     if (e.target.closest('[data-action="delete-block"]')) return;
+    if (e.target.closest('[data-action="resize-block"]')) return;
+    if (e.target.closest('[contenteditable="true"]')) return;
     dragging = true;
     moved = false;
     blockEl.setPointerCapture(e.pointerId);
@@ -277,7 +282,7 @@ function attachDrag(blockEl, root, blockId) {
     }
   });
 
-  function endDrag(e) {
+  function endDrag() {
     if (!dragging) return;
     dragging = false;
     blockEl.classList.remove("is-dragging");
@@ -286,7 +291,7 @@ function attachDrag(blockEl, root, blockId) {
       const y = parseFloat(blockEl.style.top) || 0;
       state.updateBlockPosition(blockId, { x, y });
     } else {
-      selectBlock(root, blockId);
+      selectBlock(blockId);
     }
   }
 
@@ -294,53 +299,154 @@ function attachDrag(blockEl, root, blockId) {
   blockEl.addEventListener("pointercancel", endDrag);
 }
 
+// ブロック右下角のハンドルで幅・高さを変更する。
+function attachResize(blockEl, blockId) {
+  const handle = blockEl.querySelector('[data-action="resize-block"]');
+  if (!handle) return;
+  let resizing = false;
+  let startClientX = 0;
+  let startClientY = 0;
+  let startWidth = 0;
+  let startHeight = 0;
+
+  handle.addEventListener("pointerdown", (e) => {
+    e.stopPropagation();
+    resizing = true;
+    handle.setPointerCapture(e.pointerId);
+    startClientX = e.clientX;
+    startClientY = e.clientY;
+    const rect = blockEl.getBoundingClientRect();
+    startWidth = rect.width;
+    startHeight = rect.height;
+  });
+
+  handle.addEventListener("pointermove", (e) => {
+    if (!resizing) return;
+    const dx = e.clientX - startClientX;
+    const dy = e.clientY - startClientY;
+    blockEl.style.width = `${Math.max(220, startWidth + dx)}px`;
+    blockEl.style.height = `${Math.max(120, startHeight + dy)}px`;
+  });
+
+  function endResize(e) {
+    if (!resizing) return;
+    resizing = false;
+    const width = parseFloat(blockEl.style.width);
+    const height = parseFloat(blockEl.style.height);
+    state.updateBlockSize(blockId, { width, height });
+  }
+
+  handle.addEventListener("pointerup", endResize);
+  handle.addEventListener("pointercancel", endResize);
+}
+
+// sheet要素の骨組み（表題欄+キャンバス）は初回だけ作る。以降renderPreviewは
+// この骨組みの中身を差分更新する。canvasEl自体を使い回すことで、選択ブロックの
+// contenteditableや、後述のミニパネルのDOMを不要に壊さずに済む。
+function ensureSheetSkeleton(sheetEl) {
+  if (sheetEl.querySelector("#sheetCanvas")) return;
+  sheetEl.innerHTML = `
+    <div class="sheet-titleblock" id="sheetTitleblock"></div>
+    <div class="sheet-canvas" id="sheetCanvas"></div>
+  `;
+  wireCanvasDropTarget(sheetEl.querySelector("#sheetCanvas"));
+}
+
 function renderPreview(root, s) {
   const sheetEl = root.querySelector("#sheet");
+  ensureSheetSkeleton(sheetEl);
   const game = getGame(s.gameId);
 
-  sheetEl.innerHTML = `
-    <div class="sheet-titleblock">
-      <div>
-        <div class="sheet-titleblock__title">${escapeHtml(s.title) || "無題のガイド"}</div>
-        ${s.subtitle ? `<div class="sheet-titleblock__subtitle">${escapeHtml(s.subtitle)}</div>` : ""}
-      </div>
-      <div class="sheet-titleblock__meta">
-        GAME: <span>${game ? escapeHtml(game.label) : ""}</span><br />
-        BLOCKS: <span>${s.blocks.length}</span>
-      </div>
+  sheetEl.querySelector("#sheetTitleblock").innerHTML = `
+    <div>
+      <div class="sheet-titleblock__title">${escapeHtml(s.title) || "無題のガイド"}</div>
+      ${s.subtitle ? `<div class="sheet-titleblock__subtitle">${escapeHtml(s.subtitle)}</div>` : ""}
     </div>
-    <div class="sheet-canvas" id="sheetCanvas">
-      ${s.blocks.length === 0 ? `<p class="sheet-empty">左のメニューからブロックを追加すると、ここに自由に配置できます</p>` : ""}
+    <div class="sheet-titleblock__meta">
+      GAME: <span>${game ? escapeHtml(game.label) : ""}</span><br />
+      BLOCKS: <span>${s.blocks.length}</span>
     </div>
   `;
 
   const canvasEl = sheetEl.querySelector("#sheetCanvas");
-  if (s.blocks.length === 0) return;
+  const existingBlockEls = new Map();
+  canvasEl.querySelectorAll(".sheet-block").forEach((el) => existingBlockEls.set(el.dataset.blockId, el));
+
+  const currentIds = new Set(s.blocks.map((b) => b.id));
+  existingBlockEls.forEach((el, id) => {
+    if (!currentIds.has(id)) el.remove();
+  });
+
+  if (s.blocks.length === 0) {
+    if (!canvasEl.querySelector(".sheet-empty")) {
+      canvasEl.innerHTML = `<p class="sheet-empty">左のメニューからブロックを追加すると、ここに自由に配置できます</p>`;
+    }
+    lastRenderedPanelBlockId = undefined;
+    return;
+  }
+  canvasEl.querySelector(".sheet-empty")?.remove();
+
+  let selectedBlockEl = null;
+  let selectedBlock = null;
+  let selectedMod = null;
 
   s.blocks.forEach((block, index) => {
     const mod = getBlockModule(block.type);
     if (!mod) return;
-    const pos = block.position || { x: 24, y: 24 };
 
-    const blockEl = document.createElement("div");
+    let blockEl = existingBlockEls.get(block.id);
+    if (!blockEl) {
+      blockEl = document.createElement("div");
+      blockEl.dataset.blockId = block.id;
+      blockEl.innerHTML = `
+        <button type="button" class="sheet-block__delete" data-action="delete-block" title="このブロックを削除">✕</button>
+        <span class="sheet-block__index"></span>
+        <div class="sheet-block__title"></div>
+        <div class="sheet-block__content"></div>
+        <div class="sheet-block__resize" data-action="resize-block" title="ドラッグでサイズ変更"></div>
+      `;
+      blockEl.querySelector('[data-action="delete-block"]').addEventListener("click", (e) => {
+        e.stopPropagation();
+        deleteBlock(block.id);
+      });
+      attachDrag(blockEl, block.id);
+      attachResize(blockEl, block.id);
+      canvasEl.appendChild(blockEl);
+    }
+
+    const pos = block.position || { x: 24, y: 24 };
+    const size = block.size || {};
     blockEl.className = `sheet-block ${block.id === selectedBlockId ? "is-selected" : ""}`;
     blockEl.style.left = `${pos.x}px`;
     blockEl.style.top = `${pos.y}px`;
-    blockEl.innerHTML = `
-      <button type="button" class="sheet-block__delete" data-action="delete-block" title="このブロックを削除">✕</button>
-      <span class="sheet-block__index">${String(index + 1).padStart(2, "0")}</span>
-      <div class="sheet-block__title">${escapeHtml(mod.LABEL)}</div>
-      ${mod.render(block.config)}
-    `;
+    if (size.width) blockEl.style.width = `${size.width}px`;
+    if (size.height) blockEl.style.height = `${size.height}px`;
+    blockEl.querySelector(".sheet-block__index").textContent = String(index + 1).padStart(2, "0");
+    blockEl.querySelector(".sheet-block__title").textContent = mod.LABEL;
 
-    blockEl.querySelector('[data-action="delete-block"]').addEventListener("click", (e) => {
-      e.stopPropagation();
-      deleteBlock(root, block.id);
-    });
+    // 中身はフォーカスが無い時だけ再描画する（編集中に別ブロックの操作で
+    // DOMが作り直され、contenteditableのカーソルが飛ぶのを防ぐため）。
+    const contentEl = blockEl.querySelector(".sheet-block__content");
+    if (!contentEl.contains(document.activeElement)) {
+      contentEl.innerHTML = mod.render(block.config);
+      if (mod.bindInlineEdit) {
+        mod.bindInlineEdit(contentEl, block.config, (newConfig) => state.updateBlockConfig(block.id, newConfig));
+      }
+    }
 
-    attachDrag(blockEl, root, block.id);
-    canvasEl.appendChild(blockEl);
+    if (block.id === selectedBlockId) {
+      selectedBlockEl = blockEl;
+      selectedBlock = block;
+      selectedMod = mod;
+    }
   });
+
+  if (selectedBlockEl) {
+    renderMiniPanel(root, canvasEl, selectedBlockEl, selectedBlock, s, selectedMod);
+  } else {
+    lastRenderedPanelBlockId = undefined;
+    canvasEl.querySelector("#miniPanel")?.remove();
+  }
 
   // PNG書き出し時に全ブロックが収まるよう、一番下のブロックに合わせて高さを広げる。
   let maxBottom = 200;
@@ -351,30 +457,65 @@ function renderPreview(root, s) {
   canvasEl.style.minHeight = `${maxBottom}px`;
 }
 
-function renderEditFormPanel(root, s) {
-  const panel = root.querySelector("#blockEditForm");
-  const block = s.blocks.find((b) => b.id === selectedBlockId);
+// 左のブロック追加ボタンをドラッグ&ドロップしてキャンバスの好きな位置に配置できるようにする。
+// canvasEl自体はensureSheetSkeletonで初回にしか作られないため、ここも1回だけ呼ばれる。
+function wireCanvasDropTarget(canvasEl) {
+  canvasEl.addEventListener("dragover", (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = "copy";
+  });
+  canvasEl.addEventListener("drop", (e) => {
+    e.preventDefault();
+    const type = e.dataTransfer.getData("text/plain");
+    const mod = getBlockModule(type);
+    if (!mod) return;
+    const rect = canvasEl.getBoundingClientRect();
+    const x = Math.max(0, Math.round(e.clientX - rect.left - 20));
+    const y = Math.max(0, Math.round(e.clientY - rect.top - 20));
+    const block = state.addBlock(mod.TYPE, deepClone(mod.DEFAULT_CONFIG));
+    state.updateBlockPosition(block.id, { x, y });
+    selectBlock(block.id);
+  });
+}
 
-  if (!block) {
-    lastRenderedFormBlockId = undefined;
-    panel.innerHTML = `<p class="block-edit-form__empty">左の一覧からブロックを選択すると、ここに編集フォームが表示されます</p>`;
-    return;
+// 選択中ブロックのそばに浮かぶ、列/行の追加削除など構造操作専用の小さいパネル。
+// 中身の再構築は選択ブロックが変わった時だけ行い、位置だけ毎回更新する
+// （数値入力欄などのフォーカスを、無関係な再描画で失わないため）。
+function renderMiniPanel(root, canvasEl, blockEl, block, s, mod) {
+  let panel = canvasEl.querySelector("#miniPanel");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.className = "mini-panel";
+    panel.id = "miniPanel";
+    panel.addEventListener("pointerdown", (e) => e.stopPropagation());
+    canvasEl.appendChild(panel);
   }
 
-  // 同じブロックを編集中はフォームDOMを作り直さない（入力中のフォーカスを失わないため）。
-  if (lastRenderedFormBlockId === block.id) return;
-  lastRenderedFormBlockId = block.id;
+  const left = parseFloat(blockEl.style.left) || 0;
+  const top = parseFloat(blockEl.style.top) || 0;
+  const blockWidth = parseFloat(blockEl.style.width) || blockEl.offsetWidth || DEFAULT_BLOCK_WIDTH;
+  const viewport = root.querySelector(".sheet-viewport");
+  const viewportRect = viewport.getBoundingClientRect();
+  const canvasRect = canvasEl.getBoundingClientRect();
+  const wouldOverflowRight = canvasRect.left + left + blockWidth + 250 > viewportRect.right;
 
-  const mod = getBlockModule(block.type);
-  panel.innerHTML = "";
-  if (!mod) return;
+  panel.style.left = wouldOverflowRight ? `${Math.max(0, left - 250)}px` : `${left + blockWidth + 10}px`;
+  panel.style.top = `${top}px`;
 
-  mod.renderEditForm(
-    panel,
-    block.config,
-    (newConfig) => state.updateBlockConfig(block.id, newConfig),
-    extraForBlockType(s.gameId, block.type)
-  );
+  // 直接編集で列名などを変えた後もチップ表示を最新化したいので、パネル内に
+  // フォーカスが無い限りは（ブロックが同じでも）毎回中身を作り直す。
+  // 入力中（数値欄など）だけは再構築をスキップしてフォーカスを守る。
+  const blockChanged = lastRenderedPanelBlockId !== block.id;
+  lastRenderedPanelBlockId = block.id;
+  if (blockChanged || !panel.contains(document.activeElement)) {
+    panel.innerHTML = "";
+    mod.renderEditForm(
+      panel,
+      block.config,
+      (newConfig) => state.updateBlockConfig(block.id, newConfig),
+      extraForBlockType(s.gameId, block.type)
+    );
+  }
 }
 
 function renderSaveStatus(root, meta) {

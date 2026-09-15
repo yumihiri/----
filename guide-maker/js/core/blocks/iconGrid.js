@@ -1,5 +1,7 @@
 // core/blocks/iconGrid.js
 // 組み合わせ例ブロック（キャラ × 装備アイコンの一覧）。ゲーム固有の知識は持たない。
+// キャラ名・アイテム名・列見出しはプレビュー上の直接編集で書き換える。
+// renderEditForm はキャラ・アイテムの追加/削除だけを扱う。
 import { escapeHtml, deepClone } from "../utils.js";
 
 export const TYPE = "icon_grid";
@@ -8,18 +10,18 @@ export const DESCRIPTION = "キャラと何か（聖遺物セット等）を対�
 export const DEFAULT_CONFIG = { groupLabel: "キャラ", entries: [] };
 
 export function render(config) {
-  const groupLabel = config?.groupLabel || "キャラ";
+  const groupLabel = config?.groupLabel || "";
   const entries = config?.entries ?? [];
   const bodyHtml = entries.length
     ? entries
-        .map((entry) => {
+        .map((entry, ei) => {
           const name = entry.character?.name ?? "";
           const items = entry.items ?? [];
           const itemsHtml = items.length
             ? items
                 .map(
-                  (item) =>
-                    `<span class="icon-grid__item"><span class="icon-grid__item-icon"></span>${escapeHtml(item.label)}</span>`
+                  (item, ii) =>
+                    `<span class="icon-grid__item"><span class="icon-grid__item-icon"></span><span contenteditable="true" data-edit="item-label" data-entry-index="${ei}" data-item-index="${ii}" data-placeholder="アイテム名">${escapeHtml(item.label)}</span></span>`
                 )
                 .join("")
             : "-";
@@ -27,7 +29,7 @@ export function render(config) {
             <div class="icon-grid__row">
               <div class="icon-grid__char">
                 <span class="icon-grid__icon"></span>
-                <span class="icon-grid__char-name">${escapeHtml(name)}</span>
+                <span class="icon-grid__char-name" contenteditable="true" data-edit="char-name" data-entry-index="${ei}" data-placeholder="キャラ名">${escapeHtml(name)}</span>
               </div>
               <div class="icon-grid__items">${itemsHtml}</div>
             </div>
@@ -38,12 +40,60 @@ export function render(config) {
   return `
     <div class="icon-grid">
       <div class="icon-grid__head">
-        <div class="icon-grid__head-cell">${escapeHtml(groupLabel)}</div>
+        <div class="icon-grid__head-cell" contenteditable="true" data-edit="group-label" data-placeholder="列見出し">${escapeHtml(groupLabel)}</div>
         <div class="icon-grid__head-cell">組み合わせ</div>
       </div>
       <div class="icon-grid__body">${bodyHtml}</div>
     </div>
   `;
+}
+
+export function bindInlineEdit(container, config, onChange) {
+  const cfg = deepClone(config ?? DEFAULT_CONFIG);
+
+  function bind(selector, apply) {
+    container.querySelectorAll(selector).forEach((el) => {
+      el.addEventListener("blur", () => {
+        apply(el);
+        onChange(deepClone(cfg));
+      });
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          el.blur();
+        }
+      });
+    });
+  }
+
+  const groupLabelEl = container.querySelector('[data-edit="group-label"]');
+  if (groupLabelEl) {
+    groupLabelEl.addEventListener("blur", () => {
+      cfg.groupLabel = groupLabelEl.textContent.trim();
+      onChange(deepClone(cfg));
+    });
+    groupLabelEl.addEventListener("keydown", (e) => {
+      if (e.key === "Enter") {
+        e.preventDefault();
+        groupLabelEl.blur();
+      }
+    });
+  }
+
+  bind('[data-edit="char-name"]', (el) => {
+    const i = Number(el.dataset.entryIndex);
+    if (cfg.entries[i]) {
+      cfg.entries[i].character = cfg.entries[i].character ?? { name: "", iconKey: "" };
+      cfg.entries[i].character.name = el.textContent.trim();
+    }
+  });
+  bind('[data-edit="item-label"]', (el) => {
+    const ei = Number(el.dataset.entryIndex);
+    const ii = Number(el.dataset.itemIndex);
+    if (cfg.entries[ei]?.items?.[ii]) {
+      cfg.entries[ei].items[ii].label = el.textContent.trim();
+    }
+  });
 }
 
 export function renderEditForm(container, config, onChange) {
@@ -54,80 +104,51 @@ export function renderEditForm(container, config, onChange) {
 
   function paint() {
     container.innerHTML = `
-      <label class="field">
-        <span class="field__label">列見出し</span>
-        <input class="input" type="text" data-field="group-label" value="${escapeHtml(cfg.groupLabel ?? "")}" placeholder="例：キャラ" />
-      </label>
-      <div class="form-subhead"><span class="form-subhead__title">キャラと組み合わせ</span></div>
-      <div class="form-list" data-role="entries"></div>
-      <button type="button" class="btn btn-ghost btn-block" data-action="add-entry">+ キャラを追加</button>
+      <div class="mini-panel__section">
+        <div class="mini-panel__label">キャラ（クリックで名前を編集できます）</div>
+        <div class="mini-panel__list" data-role="entries"></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-action="add-entry">+ キャラを追加</button>
+      </div>
     `;
 
-    container.querySelector('[data-field="group-label"]').addEventListener("input", (e) => {
-      cfg.groupLabel = e.target.value;
-      emit();
-    });
-
-    const entriesWrap = container.querySelector('[data-role="entries"]');
-    cfg.entries.forEach((entry, entryIndex) => {
-      entry.character = entry.character ?? { name: "", iconKey: "" };
+    const wrap = container.querySelector('[data-role="entries"]');
+    cfg.entries.forEach((entry, ei) => {
       entry.items = entry.items ?? [];
-
-      const item = document.createElement("div");
-      item.className = "form-list-item";
-      item.innerHTML = `
-        <div class="form-list-item__head">
-          <span class="form-list-item__title">キャラ ${entryIndex + 1}</span>
-          <button type="button" class="btn btn-icon btn-danger" data-action="remove-entry" title="このキャラを削除">✕</button>
+      const row = document.createElement("div");
+      row.className = "mini-panel__row-group";
+      row.innerHTML = `
+        <div class="mini-panel__row">
+          <span class="mini-panel__row-label">${escapeHtml(entry.character?.name || "(無題のキャラ)")}</span>
+          <button type="button" class="btn btn-icon" data-action="add-item" title="アイテムを追加">+</button>
+          <button type="button" class="btn btn-icon btn-danger" data-action="remove-entry" title="削除">✕</button>
         </div>
-        <label class="field">
-          <span class="field__label">キャラ名</span>
-          <input class="input" type="text" data-field="char-name" value="${escapeHtml(entry.character.name)}" placeholder="例：キャラA" />
-        </label>
-        <div class="form-subhead"><span class="form-subhead__title">組み合わせアイテム</span></div>
-        <div class="form-list" data-role="items"></div>
-        <button type="button" class="btn btn-ghost btn-block" data-action="add-item">+ アイテムを追加</button>
+        <div class="mini-panel__chips" data-role="items"></div>
       `;
-
-      item.querySelector('[data-field="char-name"]').addEventListener("input", (e) => {
-        entry.character.name = e.target.value;
-        emit();
-      });
-      item.querySelector('[data-action="remove-entry"]').addEventListener("click", () => {
-        cfg.entries.splice(entryIndex, 1);
+      row.querySelector('[data-action="remove-entry"]').addEventListener("click", () => {
+        cfg.entries.splice(ei, 1);
         paint();
         emit();
       });
-
-      const itemsWrap = item.querySelector('[data-role="items"]');
-      entry.items.forEach((it, itIndex) => {
-        const row = document.createElement("div");
-        row.className = "form-row";
-        row.innerHTML = `
-          <label class="field">
-            <input class="input" type="text" data-field="item-label" value="${escapeHtml(it.label)}" placeholder="例：アイテムA" />
-          </label>
-          <button type="button" class="btn btn-icon btn-danger" data-action="remove-item" title="このアイテムを削除">✕</button>
-        `;
-        row.querySelector('[data-field="item-label"]').addEventListener("input", (e) => {
-          it.label = e.target.value;
-          emit();
-        });
-        row.querySelector('[data-action="remove-item"]').addEventListener("click", () => {
-          entry.items.splice(itIndex, 1);
-          paint();
-          emit();
-        });
-        itemsWrap.appendChild(row);
-      });
-
-      item.querySelector('[data-action="add-item"]').addEventListener("click", () => {
+      row.querySelector('[data-action="add-item"]').addEventListener("click", () => {
         entry.items.push({ label: "", iconKey: "" });
         paint();
         emit();
       });
 
-      entriesWrap.appendChild(item);
+      const itemsWrap = row.querySelector('[data-role="items"]');
+      entry.items.forEach((it, ii) => {
+        const chip = document.createElement("span");
+        chip.className = "mini-chip";
+        chip.innerHTML = `<span>${escapeHtml(it.label || "(無題)")}</span><button type="button" data-action="remove-item" title="削除">✕</button>`;
+        chip.querySelector('[data-action="remove-item"]').addEventListener("click", () => {
+          entry.items.splice(ii, 1);
+          paint();
+          emit();
+        });
+        itemsWrap.appendChild(chip);
+      });
+
+      wrap.appendChild(row);
     });
 
     container.querySelector('[data-action="add-entry"]').addEventListener("click", () => {

@@ -1,5 +1,7 @@
 // core/blocks/tieredEffect.js
 // 凸効果表ブロック。value.type ごとに percent_range / star / text の3種で描画する。
+// 凸段階・効果テキストはプレビュー上の直接編集で書き換える
+// （text型の数値欄も同様。percent_range/starは専用の数値入力が必要なためミニパネル側で扱う）。
 import { escapeHtml, deepClone } from "../utils.js";
 
 export const TYPE = "tiered_effect";
@@ -13,7 +15,7 @@ function defaultValueForType(type) {
   return { type: "text", text: "" };
 }
 
-function renderValue(value) {
+function renderValue(value, rowIndex) {
   if (!value) return "";
   if (value.type === "percent_range") {
     const min = Number(value.min ?? 0);
@@ -27,7 +29,7 @@ function renderValue(value) {
     const off = "☆".repeat(max - rating);
     return `<span class="tiered-star">${on}<span class="tiered-star__off">${off}</span></span>`;
   }
-  return escapeHtml(value.text ?? "");
+  return `<span contenteditable="true" data-edit="value-text" data-row-index="${rowIndex}" data-placeholder="数値・テキスト">${escapeHtml(value.text ?? "")}</span>`;
 }
 
 export function render(config) {
@@ -37,11 +39,11 @@ export function render(config) {
   }
   const bodyRows = rows
     .map(
-      (row) => `
+      (row, i) => `
         <tr class="${row.highlight ? "is-highlight" : ""}">
-          <td class="is-level">${escapeHtml(row.level)}</td>
-          <td>${escapeHtml(row.effect)}</td>
-          <td class="is-value">${renderValue(row.value)}</td>
+          <td class="is-level" contenteditable="true" data-edit="level" data-row-index="${i}" data-placeholder="凸段階">${escapeHtml(row.level)}</td>
+          <td contenteditable="true" data-edit="effect" data-row-index="${i}" data-placeholder="効果">${escapeHtml(row.effect)}</td>
+          <td class="is-value">${renderValue(row.value, i)}</td>
         </tr>
       `
     )
@@ -54,6 +56,60 @@ export function render(config) {
   `;
 }
 
+export function bindInlineEdit(container, config, onChange) {
+  const cfg = deepClone(config ?? DEFAULT_CONFIG);
+
+  function bind(selector, apply) {
+    container.querySelectorAll(selector).forEach((el) => {
+      el.addEventListener("blur", () => {
+        apply(el);
+        onChange(deepClone(cfg));
+      });
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          el.blur();
+        }
+      });
+    });
+  }
+
+  bind('[data-edit="level"]', (el) => {
+    const i = Number(el.dataset.rowIndex);
+    if (cfg.rows[i]) cfg.rows[i].level = el.textContent.trim();
+  });
+  bind('[data-edit="effect"]', (el) => {
+    const i = Number(el.dataset.rowIndex);
+    if (cfg.rows[i]) cfg.rows[i].effect = el.textContent.trim();
+  });
+  bind('[data-edit="value-text"]', (el) => {
+    const i = Number(el.dataset.rowIndex);
+    if (cfg.rows[i]?.value) cfg.rows[i].value.text = el.textContent.trim();
+  });
+}
+
+function renderValueFieldsHtml(value) {
+  if (value.type === "percent_range") {
+    return `
+      <div class="mini-panel__inline">
+        <input class="input input-sm" type="number" data-field="min" value="${value.min ?? 0}" placeholder="最小%" />
+        <span>~</span>
+        <input class="input input-sm" type="number" data-field="max" value="${value.max ?? 0}" placeholder="最大%" />
+      </div>
+    `;
+  }
+  if (value.type === "star") {
+    return `
+      <div class="mini-panel__inline">
+        <input class="input input-sm" type="number" min="0" data-field="rating" value="${value.rating ?? 0}" placeholder="評価" />
+        <span>/</span>
+        <input class="input input-sm" type="number" min="1" data-field="max" value="${value.max ?? 5}" placeholder="満点" />
+      </div>
+    `;
+  }
+  return `<p class="field__hint">数値・テキストはプレビュー上で直接編集できます</p>`;
+}
+
 export function renderEditForm(container, config, onChange) {
   const cfg = deepClone(config ?? DEFAULT_CONFIG);
   cfg.rows = cfg.rows ?? [];
@@ -62,91 +118,38 @@ export function renderEditForm(container, config, onChange) {
 
   function paint() {
     container.innerHTML = `
-      <div class="form-subhead"><span class="form-subhead__title">凸効果（表示順）</span></div>
-      <div class="form-list" data-role="rows"></div>
-      <button type="button" class="btn btn-ghost btn-block" data-action="add-row">+ 行を追加</button>
+      <div class="mini-panel__section">
+        <div class="mini-panel__label">行（クリックで凸段階・効果を編集できます）</div>
+        <div class="mini-panel__list" data-role="rows"></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-action="add-row">+ 行を追加</button>
+      </div>
     `;
 
-    const rowsWrap = container.querySelector('[data-role="rows"]');
+    const wrap = container.querySelector('[data-role="rows"]');
     cfg.rows.forEach((row, index) => {
       row.value = row.value ?? defaultValueForType("percent_range");
       const type = row.value.type;
 
-      const valueFieldsHtml =
-        type === "percent_range"
-          ? `
-            <div class="form-grid-2">
-              <label class="field">
-                <span class="field__label">最小%</span>
-                <input class="input" type="number" data-field="min" value="${row.value.min ?? 0}" />
-              </label>
-              <label class="field">
-                <span class="field__label">最大%</span>
-                <input class="input" type="number" data-field="max" value="${row.value.max ?? 0}" />
-              </label>
-            </div>
-          `
-          : type === "star"
-          ? `
-            <div class="form-grid-2">
-              <label class="field">
-                <span class="field__label">評価</span>
-                <input class="input" type="number" min="0" data-field="rating" value="${row.value.rating ?? 0}" />
-              </label>
-              <label class="field">
-                <span class="field__label">満点</span>
-                <input class="input" type="number" min="1" data-field="max" value="${row.value.max ?? 5}" />
-              </label>
-            </div>
-          `
-          : `
-            <label class="field">
-              <span class="field__label">表示テキスト</span>
-              <input class="input" type="text" data-field="text" value="${escapeHtml(row.value.text ?? "")}" placeholder="例：発動条件なし" />
-            </label>
-          `;
-
       const item = document.createElement("div");
-      item.className = "form-list-item";
+      item.className = "mini-panel__row-group";
       item.innerHTML = `
-        <div class="form-row">
-          <label class="field">
-            <span class="field__label">凸段階</span>
-            <input class="input" type="text" data-field="level" value="${escapeHtml(row.level ?? "")}" placeholder="例：1凸" />
-          </label>
+        <div class="mini-panel__row">
+          <span class="mini-panel__row-label">${escapeHtml(row.level || "(無題)")}</span>
           <button type="button" class="btn btn-icon btn-danger" data-action="remove" title="削除">✕</button>
         </div>
-        <label class="field">
-          <span class="field__label">効果</span>
-          <textarea class="textarea" data-field="effect" placeholder="例：スキルのダメージが上昇する">${escapeHtml(row.effect ?? "")}</textarea>
-        </label>
-        <label class="field">
-          <span class="field__label">数値の種類</span>
-          <select class="select" data-field="value-type">
+        <div class="mini-panel__inline">
+          <select class="select select-sm" data-field="value-type">
             <option value="percent_range" ${type === "percent_range" ? "selected" : ""}>数値範囲(%)</option>
             <option value="star" ${type === "star" ? "selected" : ""}>星評価</option>
             <option value="text" ${type === "text" ? "selected" : ""}>テキスト</option>
           </select>
-        </label>
-        <div data-role="value-fields">${valueFieldsHtml}</div>
-        <label class="field field-checkbox">
-          <input type="checkbox" data-field="highlight" ${row.highlight ? "checked" : ""} />
-          <span class="field__label">強調表示する</span>
-        </label>
+          <label class="mini-panel__checkbox">
+            <input type="checkbox" data-field="highlight" ${row.highlight ? "checked" : ""} /> 強調
+          </label>
+        </div>
+        <div data-role="value-fields">${renderValueFieldsHtml(row.value)}</div>
       `;
 
-      item.querySelector('[data-field="level"]').addEventListener("input", (e) => {
-        row.level = e.target.value;
-        emit();
-      });
-      item.querySelector('[data-field="effect"]').addEventListener("input", (e) => {
-        row.effect = e.target.value;
-        emit();
-      });
-      item.querySelector('[data-field="highlight"]').addEventListener("change", (e) => {
-        row.highlight = e.target.checked;
-        emit();
-      });
       item.querySelector('[data-action="remove"]').addEventListener("click", () => {
         cfg.rows.splice(index, 1);
         paint();
@@ -157,17 +160,21 @@ export function renderEditForm(container, config, onChange) {
         paint();
         emit();
       });
+      item.querySelector('[data-field="highlight"]').addEventListener("change", (e) => {
+        row.highlight = e.target.checked;
+        emit();
+      });
 
-      const minInput = item.querySelector('[data-field="min"]');
-      if (minInput) minInput.addEventListener("input", (e) => { row.value.min = Number(e.target.value); emit(); });
-      const maxInput = item.querySelector('[data-field="max"]');
-      if (maxInput) maxInput.addEventListener("input", (e) => { row.value.max = Number(e.target.value); emit(); });
-      const ratingInput = item.querySelector('[data-field="rating"]');
-      if (ratingInput) ratingInput.addEventListener("input", (e) => { row.value.rating = Number(e.target.value); emit(); });
-      const textInput = item.querySelector('[data-field="text"]');
-      if (textInput) textInput.addEventListener("input", (e) => { row.value.text = e.target.value; emit(); });
+      // changeイベントで確定させる（inputだと入力中に再描画が走りフォーカスを失うため）
+      const valueFieldsEl = item.querySelector('[data-role="value-fields"]');
+      const minInput = valueFieldsEl.querySelector('[data-field="min"]');
+      if (minInput) minInput.addEventListener("change", (e) => { row.value.min = Number(e.target.value); emit(); });
+      const maxInput = valueFieldsEl.querySelector('[data-field="max"]');
+      if (maxInput) maxInput.addEventListener("change", (e) => { row.value.max = Number(e.target.value); emit(); });
+      const ratingInput = valueFieldsEl.querySelector('[data-field="rating"]');
+      if (ratingInput) ratingInput.addEventListener("change", (e) => { row.value.rating = Number(e.target.value); emit(); });
 
-      rowsWrap.appendChild(item);
+      wrap.appendChild(item);
     });
 
     container.querySelector('[data-action="add-row"]').addEventListener("click", () => {

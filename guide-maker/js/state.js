@@ -103,6 +103,14 @@ export function updateBlockPosition(blockId, position) {
   persist();
 }
 
+export function updateBlockSize(blockId, size) {
+  const block = state.blocks.find((b) => b.id === blockId);
+  if (!block) return;
+  block.size = size;
+  notify();
+  persist();
+}
+
 export function getBlock(blockId) {
   return state.blocks.find((b) => b.id === blockId) || null;
 }

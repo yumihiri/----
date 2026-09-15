@@ -1,5 +1,7 @@
 // core/blocks/statTable.js
 // 目標ステータス表ブロック。ゲーム固有の知識は持たず、列候補は extra.columnOptions で受け取る。
+// ラベル・値のテキストはプレビュー上の直接編集（contenteditable）で書き換える。
+// renderEditForm は列・行の追加/削除など、直接編集では対応できない構造操作だけを扱う。
 import { escapeHtml, deepClone } from "../utils.js";
 
 export const TYPE = "stat_table";
@@ -13,16 +15,60 @@ export function render(config) {
   if (columns.length === 0 && rows.length === 0) {
     return `<p class="sheet-empty">「列」と「行」を追加すると表が表示されます</p>`;
   }
-  const theadCells = columns.map((c) => `<th>${escapeHtml(c.label)}</th>`).join("");
+  const theadCells = columns
+    .map(
+      (c, i) =>
+        `<th contenteditable="true" data-edit="column-label" data-col-index="${i}" data-placeholder="列名">${escapeHtml(c.label)}</th>`
+    )
+    .join("");
   const bodyRows = rows
-    .map((row) => {
+    .map((row, ri) => {
       const cells = columns
-        .map((c) => `<td>${escapeHtml(row.values?.[c.key] ?? "")}</td>`)
+        .map(
+          (c) =>
+            `<td contenteditable="true" data-edit="cell-value" data-row-index="${ri}" data-col-key="${escapeHtml(c.key)}" data-placeholder="値">${escapeHtml(row.values?.[c.key] ?? "")}</td>`
+        )
         .join("");
-      return `<tr><td>${escapeHtml(row.name)}</td>${cells}</tr>`;
+      return `<tr><td contenteditable="true" data-edit="row-name" data-row-index="${ri}" data-placeholder="名前">${escapeHtml(row.name)}</td>${cells}</tr>`;
     })
     .join("");
   return `<table class="stat-table"><thead><tr><th>項目</th>${theadCells}</tr></thead><tbody>${bodyRows}</tbody></table>`;
+}
+
+export function bindInlineEdit(container, config, onChange) {
+  const cfg = deepClone(config ?? DEFAULT_CONFIG);
+
+  function bind(selector, apply) {
+    container.querySelectorAll(selector).forEach((el) => {
+      el.addEventListener("blur", () => {
+        apply(el);
+        onChange(deepClone(cfg));
+      });
+      el.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") {
+          e.preventDefault();
+          el.blur();
+        }
+      });
+    });
+  }
+
+  bind('[data-edit="column-label"]', (el) => {
+    const i = Number(el.dataset.colIndex);
+    if (cfg.columns[i]) cfg.columns[i].label = el.textContent.trim();
+  });
+  bind('[data-edit="row-name"]', (el) => {
+    const i = Number(el.dataset.rowIndex);
+    if (cfg.rows[i]) cfg.rows[i].name = el.textContent.trim();
+  });
+  bind('[data-edit="cell-value"]', (el) => {
+    const i = Number(el.dataset.rowIndex);
+    const key = el.dataset.colKey;
+    if (cfg.rows[i]) {
+      cfg.rows[i].values = cfg.rows[i].values ?? {};
+      cfg.rows[i].values[key] = el.textContent.trim();
+    }
+  });
 }
 
 export function renderEditForm(container, config, onChange, extra = {}) {
@@ -35,52 +81,24 @@ export function renderEditForm(container, config, onChange, extra = {}) {
 
   function paint() {
     container.innerHTML = `
-      <div class="form-subhead"><span class="form-subhead__title">列（項目）</span></div>
-      <div class="form-list" data-role="columns"></div>
-      <button type="button" class="btn btn-ghost btn-block" data-action="add-column">+ 列を追加</button>
-      <div class="form-subhead"><span class="form-subhead__title">行（キャラ・条件）</span></div>
-      <div class="form-list" data-role="rows"></div>
-      <button type="button" class="btn btn-ghost btn-block" data-action="add-row">+ 行を追加</button>
+      <div class="mini-panel__section">
+        <div class="mini-panel__label">列（クリックで名前を編集できます）</div>
+        <div class="mini-panel__chips" data-role="columns"></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-action="add-column">+ 列を追加</button>
+      </div>
+      <div class="mini-panel__section">
+        <div class="mini-panel__label">行（クリックで名前を編集できます）</div>
+        <div class="mini-panel__chips" data-role="rows"></div>
+        <button type="button" class="btn btn-ghost btn-sm" data-action="add-row">+ 行を追加</button>
+      </div>
     `;
 
     const columnsWrap = container.querySelector('[data-role="columns"]');
     cfg.columns.forEach((col, colIndex) => {
-      const item = document.createElement("div");
-      item.className = "form-list-item";
-      item.innerHTML = `
-        <div class="form-row">
-          <label class="field">
-            <span class="field__label">表示ラベル</span>
-            <input class="input" type="text" data-field="label" value="${escapeHtml(col.label)}" placeholder="例：会心率" />
-          </label>
-          <button type="button" class="btn btn-icon btn-danger" data-action="remove-column" title="この列を削除">✕</button>
-        </div>
-        <label class="field">
-          <span class="field__label">候補から選ぶ（任意・自動入力）</span>
-          <select class="select" data-field="preset-key">
-            <option value="">-- 候補を選択 --</option>
-            ${columnOptions
-              .map(
-                (opt) =>
-                  `<option value="${escapeHtml(opt.key)}" ${opt.key === col.key ? "selected" : ""}>${escapeHtml(opt.label)}</option>`
-              )
-              .join("")}
-          </select>
-        </label>
-      `;
-
-      item.querySelector('[data-field="label"]').addEventListener("input", (e) => {
-        cfg.columns[colIndex].label = e.target.value;
-        emit();
-      });
-      item.querySelector('[data-field="preset-key"]').addEventListener("change", (e) => {
-        const opt = columnOptions.find((o) => o.key === e.target.value);
-        if (!opt) return;
-        cfg.columns[colIndex] = { key: opt.key, label: opt.label };
-        paint();
-        emit();
-      });
-      item.querySelector('[data-action="remove-column"]').addEventListener("click", () => {
+      const chip = document.createElement("span");
+      chip.className = "mini-chip";
+      chip.innerHTML = `<span>${escapeHtml(col.label || "(無題の列)")}</span><button type="button" data-action="remove" title="削除">✕</button>`;
+      chip.querySelector('[data-action="remove"]').addEventListener("click", () => {
         const removedKey = cfg.columns[colIndex].key;
         cfg.columns.splice(colIndex, 1);
         cfg.rows.forEach((row) => {
@@ -89,66 +107,34 @@ export function renderEditForm(container, config, onChange, extra = {}) {
         paint();
         emit();
       });
-
-      columnsWrap.appendChild(item);
+      columnsWrap.appendChild(chip);
     });
 
     const rowsWrap = container.querySelector('[data-role="rows"]');
     cfg.rows.forEach((row, rowIndex) => {
-      row.values = row.values ?? {};
-      const item = document.createElement("div");
-      item.className = "form-list-item";
-      item.innerHTML = `
-        <div class="form-row">
-          <label class="field">
-            <span class="field__label">名前（キャラ・条件）</span>
-            <input class="input" type="text" data-field="name" value="${escapeHtml(row.name)}" placeholder="例：0凸" />
-          </label>
-          <button type="button" class="btn btn-icon btn-danger" data-action="remove-row" title="この行を削除">✕</button>
-        </div>
-        ${cfg.columns
-          .map(
-            (col) => `
-          <label class="field">
-            <span class="field__label">${escapeHtml(col.label || "(未設定の列)")}</span>
-            <input class="input" type="text" data-field="value" data-key="${escapeHtml(col.key)}" value="${escapeHtml(row.values[col.key] ?? "")}" placeholder="例：60~70%" />
-          </label>`
-          )
-          .join("")}
-      `;
-
-      item.querySelector('[data-field="name"]').addEventListener("input", (e) => {
-        row.name = e.target.value;
-        emit();
-      });
-      item.querySelector('[data-action="remove-row"]').addEventListener("click", () => {
+      const chip = document.createElement("span");
+      chip.className = "mini-chip";
+      chip.innerHTML = `<span>${escapeHtml(row.name || "(無題の行)")}</span><button type="button" data-action="remove" title="削除">✕</button>`;
+      chip.querySelector('[data-action="remove"]').addEventListener("click", () => {
         cfg.rows.splice(rowIndex, 1);
         paint();
         emit();
       });
-      item.querySelectorAll('[data-field="value"]').forEach((input) => {
-        input.addEventListener("input", (e) => {
-          row.values[e.target.dataset.key] = e.target.value;
-          emit();
-        });
-      });
-
-      rowsWrap.appendChild(item);
+      rowsWrap.appendChild(chip);
     });
 
     container.querySelector('[data-action="add-column"]').addEventListener("click", () => {
-      cfg.columns.push({ key: `custom_${Date.now()}_${cfg.columns.length}`, label: "" });
+      const firstUnused = columnOptions.find((opt) => !cfg.columns.some((c) => c.key === opt.key));
+      cfg.columns.push(
+        firstUnused ? { key: firstUnused.key, label: firstUnused.label } : { key: `custom_${Date.now()}`, label: "" }
+      );
       paint();
       emit();
-      const labelInputs = container.querySelectorAll('[data-role="columns"] [data-field="label"]');
-      labelInputs[labelInputs.length - 1]?.focus();
     });
     container.querySelector('[data-action="add-row"]').addEventListener("click", () => {
       cfg.rows.push({ name: "", values: {} });
       paint();
       emit();
-      const nameInputs = container.querySelectorAll('[data-role="rows"] [data-field="name"]');
-      nameInputs[nameInputs.length - 1]?.focus();
     });
   }
 

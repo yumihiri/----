@@ -7,9 +7,12 @@ export async function exportSheetAsImage(targetEl, filename = "guide.png") {
   const canvas = await window.html2canvas(targetEl, {
     backgroundColor: "#10151a",
     scale: 2,
-    // 削除ボタンや選択中ハイライトは編集用のUIなので、書き出し画像には含めない。
+    // 削除ボタン・リサイズハンドル・設定パネル・選択中ハイライトは編集用のUIなので、
+    // 書き出し画像には含めない。
     onclone: (clonedDoc) => {
       clonedDoc.querySelectorAll(".sheet-block__delete").forEach((el) => el.remove());
+      clonedDoc.querySelectorAll(".sheet-block__resize").forEach((el) => el.remove());
+      clonedDoc.querySelectorAll("#miniPanel").forEach((el) => el.remove());
       clonedDoc.querySelectorAll(".sheet-block.is-selected").forEach((el) => el.classList.remove("is-selected"));
     },
   });
