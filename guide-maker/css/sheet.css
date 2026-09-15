@@ -90,17 +90,65 @@
   color: var(--cyan);
 }
 
+/* ---- 自由配置キャンバス ---- */
+/* ブロックをドラッグで好きな位置に置ける領域。高さはJS側で
+   一番下のブロックに合わせて動的に広げる（editor.js参照）。 */
+
+.sheet-canvas {
+  position: relative;
+  min-height: 200px;
+}
+
 /* ---- ブロック共通ラッパー ---- */
 
 .sheet-block {
-  position: relative;
-  margin-bottom: 22px;
+  position: absolute;
+  width: 420px;
+  max-width: calc(100% - 4px);
   border: 1px solid var(--grid);
+  background: var(--ink);
   padding: 18px 18px 20px;
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
 }
 
-.sheet-block:last-child {
-  margin-bottom: 0;
+.sheet-block.is-dragging {
+  cursor: grabbing;
+  z-index: 30;
+  opacity: 0.92;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.5);
+}
+
+.sheet-block.is-selected {
+  border-color: var(--cyan);
+  box-shadow: 0 0 0 1px var(--cyan);
+}
+
+.sheet-block__delete {
+  position: absolute;
+  top: -11px;
+  right: -11px;
+  width: 24px;
+  height: 24px;
+  border-radius: 999px;
+  background: var(--bg-panel);
+  border: 1px solid var(--grid);
+  color: var(--danger);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+  z-index: 5;
+}
+
+.sheet-block__delete:hover {
+  background: var(--danger);
+  border-color: var(--danger);
+  color: #fff;
 }
 
 .sheet-block__index {

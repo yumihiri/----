@@ -1,5 +1,5 @@
 // screens/editor.js
-// ③エディタ画面。ブロック追加・編集フォーム・プレビュー・並び替え・削除・
+// ③エディタ画面。ブロック追加・編集フォーム・プレビュー・ドラッグ配置・削除・
 // 自動保存・PNG書き出しを統合するメイン画面。
 import { getGame } from "../games/registry.js";
 import { getBlockModule, BLOCK_TYPES } from "../core/blocks/index.js";
@@ -207,15 +207,13 @@ function renderBlockList(root, s) {
   }
 
   listEl.innerHTML = s.blocks
-    .map((block, index) => {
+    .map((block) => {
       const mod = getBlockModule(block.type);
       return `
         <div class="block-list-item ${block.id === selectedBlockId ? "is-active" : ""}" data-block-id="${block.id}">
           <span class="block-list-item__type">${mod ? escapeHtml(mod.LABEL) : escapeHtml(block.type)}</span>
           <span class="block-list-item__label" data-action="select">${escapeHtml(blockPreviewLabel(block, mod))}</span>
           <span class="block-list-item__actions">
-            <button type="button" class="btn btn-icon" data-action="move-up" title="上へ" ${index === 0 ? "disabled" : ""}>↑</button>
-            <button type="button" class="btn btn-icon" data-action="move-down" title="下へ" ${index === s.blocks.length - 1 ? "disabled" : ""}>↓</button>
             <button type="button" class="btn btn-icon btn-danger" data-action="delete" title="削除">✕</button>
           </span>
         </div>
@@ -225,39 +223,80 @@ function renderBlockList(root, s) {
 
   listEl.querySelectorAll(".block-list-item").forEach((row) => {
     const blockId = row.dataset.blockId;
-    row.querySelector('[data-action="select"]').addEventListener("click", () => {
-      selectedBlockId = blockId;
-      renderBlockList(root, state.getState());
-      renderEditFormPanel(root, state.getState());
-    });
-    row.querySelector('[data-action="move-up"]').addEventListener("click", () => state.moveBlock(blockId, "up"));
-    row.querySelector('[data-action="move-down"]').addEventListener("click", () => state.moveBlock(blockId, "down"));
-    row.querySelector('[data-action="delete"]').addEventListener("click", () => {
-      if (selectedBlockId === blockId) selectedBlockId = null;
-      state.removeBlock(blockId);
-    });
+    row.querySelector('[data-action="select"]').addEventListener("click", () => selectBlock(root, blockId));
+    row.querySelector('[data-action="delete"]').addEventListener("click", () => deleteBlock(root, blockId));
   });
+}
+
+function selectBlock(root, blockId) {
+  selectedBlockId = blockId;
+  renderBlockList(root, state.getState());
+  renderEditFormPanel(root, state.getState());
+  renderPreview(root, state.getState());
+}
+
+function deleteBlock(root, blockId) {
+  if (selectedBlockId === blockId) selectedBlockId = null;
+  state.removeBlock(blockId);
+}
+
+// ブロックのドラッグ移動。移動量が小さい（クリック相当）場合は選択として扱う。
+// ドラッグ中はstateを更新せずスタイルを直接操作し、pointerup時にのみ位置を確定させる
+// （毎フレームstate経由で再描画するとDOMが作り直されドラッグが破綻するため）。
+function attachDrag(blockEl, root, blockId) {
+  const DRAG_THRESHOLD = 4;
+  let dragging = false;
+  let moved = false;
+  let startClientX = 0;
+  let startClientY = 0;
+  let startLeft = 0;
+  let startTop = 0;
+
+  blockEl.addEventListener("pointerdown", (e) => {
+    if (e.target.closest('[data-action="delete-block"]')) return;
+    dragging = true;
+    moved = false;
+    blockEl.setPointerCapture(e.pointerId);
+    startClientX = e.clientX;
+    startClientY = e.clientY;
+    startLeft = parseFloat(blockEl.style.left) || 0;
+    startTop = parseFloat(blockEl.style.top) || 0;
+  });
+
+  blockEl.addEventListener("pointermove", (e) => {
+    if (!dragging) return;
+    const dx = e.clientX - startClientX;
+    const dy = e.clientY - startClientY;
+    if (!moved && (Math.abs(dx) > DRAG_THRESHOLD || Math.abs(dy) > DRAG_THRESHOLD)) {
+      moved = true;
+      blockEl.classList.add("is-dragging");
+    }
+    if (moved) {
+      blockEl.style.left = `${Math.max(0, startLeft + dx)}px`;
+      blockEl.style.top = `${Math.max(0, startTop + dy)}px`;
+    }
+  });
+
+  function endDrag(e) {
+    if (!dragging) return;
+    dragging = false;
+    blockEl.classList.remove("is-dragging");
+    if (moved) {
+      const x = parseFloat(blockEl.style.left) || 0;
+      const y = parseFloat(blockEl.style.top) || 0;
+      state.updateBlockPosition(blockId, { x, y });
+    } else {
+      selectBlock(root, blockId);
+    }
+  }
+
+  blockEl.addEventListener("pointerup", endDrag);
+  blockEl.addEventListener("pointercancel", endDrag);
 }
 
 function renderPreview(root, s) {
   const sheetEl = root.querySelector("#sheet");
   const game = getGame(s.gameId);
-
-  const blocksHtml = s.blocks.length
-    ? s.blocks
-        .map((block, index) => {
-          const mod = getBlockModule(block.type);
-          if (!mod) return "";
-          return `
-            <div class="sheet-block">
-              <span class="sheet-block__index">${String(index + 1).padStart(2, "0")}</span>
-              <div class="sheet-block__title">${escapeHtml(mod.LABEL)}</div>
-              ${mod.render(block.config)}
-            </div>
-          `;
-        })
-        .join("")
-    : `<p class="sheet-empty">左のメニューからブロックを追加すると、ここにプレビューが表示されます</p>`;
 
   sheetEl.innerHTML = `
     <div class="sheet-titleblock">
@@ -270,8 +309,46 @@ function renderPreview(root, s) {
         BLOCKS: <span>${s.blocks.length}</span>
       </div>
     </div>
-    ${blocksHtml}
+    <div class="sheet-canvas" id="sheetCanvas">
+      ${s.blocks.length === 0 ? `<p class="sheet-empty">左のメニューからブロックを追加すると、ここに自由に配置できます</p>` : ""}
+    </div>
   `;
+
+  const canvasEl = sheetEl.querySelector("#sheetCanvas");
+  if (s.blocks.length === 0) return;
+
+  s.blocks.forEach((block, index) => {
+    const mod = getBlockModule(block.type);
+    if (!mod) return;
+    const pos = block.position || { x: 24, y: 24 };
+
+    const blockEl = document.createElement("div");
+    blockEl.className = `sheet-block ${block.id === selectedBlockId ? "is-selected" : ""}`;
+    blockEl.style.left = `${pos.x}px`;
+    blockEl.style.top = `${pos.y}px`;
+    blockEl.innerHTML = `
+      <button type="button" class="sheet-block__delete" data-action="delete-block" title="このブロックを削除">✕</button>
+      <span class="sheet-block__index">${String(index + 1).padStart(2, "0")}</span>
+      <div class="sheet-block__title">${escapeHtml(mod.LABEL)}</div>
+      ${mod.render(block.config)}
+    `;
+
+    blockEl.querySelector('[data-action="delete-block"]').addEventListener("click", (e) => {
+      e.stopPropagation();
+      deleteBlock(root, block.id);
+    });
+
+    attachDrag(blockEl, root, block.id);
+    canvasEl.appendChild(blockEl);
+  });
+
+  // PNG書き出し時に全ブロックが収まるよう、一番下のブロックに合わせて高さを広げる。
+  let maxBottom = 200;
+  canvasEl.querySelectorAll(".sheet-block").forEach((el) => {
+    const top = parseFloat(el.style.top) || 0;
+    maxBottom = Math.max(maxBottom, top + el.offsetHeight + 24);
+  });
+  canvasEl.style.minHeight = `${maxBottom}px`;
 }
 
 function renderEditFormPanel(root, s) {

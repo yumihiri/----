@@ -7,6 +7,15 @@ import { createAutosaveController, saveNow } from "./core/storage/autosave.js";
 let state = null;
 const listeners = new Set();
 
+// 自由配置キャンバスでのブロックの初期位置。新規ブロックは少しずつ下にずらして
+// 出発点を作るだけで、実際の位置はユーザーがドラッグして決める前提。
+const DEFAULT_POSITION_X = 24;
+const DEFAULT_POSITION_STEP_Y = 260;
+
+function nextDefaultPosition(existingCount) {
+  return { x: DEFAULT_POSITION_X, y: 24 + existingCount * DEFAULT_POSITION_STEP_Y };
+}
+
 const autosave = createAutosaveController({
   onSaveStart: () => notify({ saving: true }),
   onSaveEnd: () => notify({ saving: false }),
@@ -35,10 +44,11 @@ export function initState({ gameId, title = "", subtitle = "", blocks = [], draf
     draftId: draftId || uid("draft"),
     title,
     subtitle,
-    blocks: blocks.map((b) => ({
+    blocks: blocks.map((b, index) => ({
       id: b.id || uid("block"),
       type: b.type,
       config: b.config,
+      position: b.position || nextDefaultPosition(index),
     })),
   };
   notify();
@@ -64,7 +74,7 @@ export function setSubtitle(subtitle) {
 }
 
 export function addBlock(type, config) {
-  const block = { id: uid("block"), type, config };
+  const block = { id: uid("block"), type, config, position: nextDefaultPosition(state.blocks.length) };
   state.blocks.push(block);
   notify();
   persist();
@@ -85,12 +95,10 @@ export function updateBlockConfig(blockId, config) {
   persist();
 }
 
-export function moveBlock(blockId, direction) {
-  const index = state.blocks.findIndex((b) => b.id === blockId);
-  if (index === -1) return;
-  const target = direction === "up" ? index - 1 : index + 1;
-  if (target < 0 || target >= state.blocks.length) return;
-  [state.blocks[index], state.blocks[target]] = [state.blocks[target], state.blocks[index]];
+export function updateBlockPosition(blockId, position) {
+  const block = state.blocks.find((b) => b.id === blockId);
+  if (!block) return;
+  block.position = position;
   notify();
   persist();
 }
