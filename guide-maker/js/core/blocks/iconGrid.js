@@ -10,13 +10,19 @@ export const DESCRIPTION = "キャラと何か（聖遺物セット等）を対�
 const CHAR_COUNT = 4;
 
 function emptyCharacters() {
-  return Array.from({ length: CHAR_COUNT }, () => ({ name: "" }));
+  return Array.from({ length: CHAR_COUNT }, () => ({ name: "", iconKey: "" }));
 }
 function emptyRow() {
-  return { items: Array.from({ length: CHAR_COUNT }, () => ({ label: "" })) };
+  return { items: Array.from({ length: CHAR_COUNT }, () => ({ label: "", iconKey: "" })) };
 }
 
 export const DEFAULT_CONFIG = { characters: emptyCharacters(), rows: [] };
+
+// iconKeyは将来Enka Network等のAPIから取得したキャラ/聖遺物アイコンを
+// 割り当てるための拡張ポイント。今は空文字のままグレーの丸だけを表示する。
+function iconSlot(iconKey, sizeClass = "") {
+  return `<div class="icon-grid__icon-slot ${sizeClass}" data-icon-key="${escapeHtml(iconKey ?? "")}"></div>`;
+}
 
 export function render(config) {
   const characters = config?.characters?.length === CHAR_COUNT ? config.characters : emptyCharacters();
@@ -24,8 +30,12 @@ export function render(config) {
 
   const headCells = characters
     .map(
-      (c, i) =>
-        `<th contenteditable="true" data-edit="char-name" data-char-index="${i}" data-placeholder="キャラ${i + 1}">${escapeHtml(c.name)}</th>`
+      (c, i) => `
+        <th>
+          ${iconSlot(c.iconKey)}
+          <div contenteditable="true" data-edit="char-name" data-char-index="${i}" data-placeholder="キャラ${i + 1}">${escapeHtml(c.name)}</div>
+        </th>
+      `
     )
     .join("");
 
@@ -34,8 +44,13 @@ export function render(config) {
         .map((row, ri) => {
           const cells = Array.from({ length: CHAR_COUNT })
             .map((_, ci) => {
-              const label = row.items?.[ci]?.label ?? "";
-              return `<td contenteditable="true" data-edit="item-label" data-row-index="${ri}" data-item-index="${ci}" data-placeholder="組み合わせ">${escapeHtml(label)}</td>`;
+              const item = row.items?.[ci] ?? {};
+              return `
+                <td>
+                  ${iconSlot(item.iconKey, "icon-grid__icon-slot--sm")}
+                  <div contenteditable="true" data-edit="item-label" data-row-index="${ri}" data-item-index="${ci}" data-placeholder="組み合わせ">${escapeHtml(item.label ?? "")}</div>
+                </td>
+              `;
             })
             .join("");
           return `<tr>${cells}</tr>`;
@@ -80,7 +95,7 @@ export function bindInlineEdit(container, config, onChange) {
     const ci = Number(el.dataset.itemIndex);
     if (cfg.rows[ri]) {
       cfg.rows[ri].items = cfg.rows[ri].items ?? [];
-      cfg.rows[ri].items[ci] = cfg.rows[ri].items[ci] ?? { label: "" };
+      cfg.rows[ri].items[ci] = cfg.rows[ri].items[ci] ?? { label: "", iconKey: "" };
       cfg.rows[ri].items[ci].label = el.textContent.trim();
     }
   });

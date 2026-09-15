@@ -247,6 +247,22 @@
   font-style: italic;
 }
 
+/* iconKeyが空の間はグレーの丸だけ表示する。将来ここに
+   background-image でキャラ/聖遺物アイコンを差し込む想定。 */
+.icon-grid__icon-slot {
+  width: 36px;
+  height: 36px;
+  border-radius: 999px;
+  background: var(--grid);
+  margin: 0 auto 6px;
+}
+
+.icon-grid__icon-slot--sm {
+  width: 26px;
+  height: 26px;
+  margin-bottom: 4px;
+}
+
 /* ---- 3-3. priority_list ---- */
 
 .priority-list__title {
@@ -520,10 +536,16 @@
 
 .sheet-block__resize {
   position: absolute;
-  right: 0;
-  bottom: 0;
-  width: 16px;
-  height: 16px;
+  right: -3px;
+  bottom: -3px;
+  width: 24px;
+  height: 24px;
   cursor: nwse-resize;
-  background: linear-gradient(135deg, transparent 50%, var(--grid) 50%, var(--grid) 60%, transparent 60%, transparent 70%, var(--grid) 70%, var(--grid) 80%, transparent 80%);
+  touch-action: none;
+  background: linear-gradient(135deg, transparent 50%, var(--cyan) 50%, var(--cyan) 60%, transparent 60%, transparent 70%, var(--cyan) 70%, var(--cyan) 80%, transparent 80%);
+  opacity: 0.65;
+}
+
+.sheet-block__resize:hover {
+  opacity: 1;
 }

@@ -24,9 +24,11 @@
   border-bottom: 1px solid var(--border);
 }
 
+/* flex:1 + min-heightで「残りスペースを埋める」を狙うと、実際のコンテンツが
+   min-heightを超えた時にレイアウト計算がそれを考慮せず、次のセクションと
+   重なって表示される事故が起きる。素直に自然な高さで積む。 */
 .controls-section--grow {
-  flex: 1;
-  min-height: 160px;
+  flex: 0 0 auto;
 }
 
 .controls-section__title {
